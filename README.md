@@ -1,1 +1,9 @@
-# Klatt_etal_2026_SwissPlateau_Lakes
+# Phytoplankton community responses to 20th century eutrophication of Swiss Plateau lakes: a proxy comparison from short sediment cores
+## Antonia Klatt, Daniel B. Nelson, Jan Waelchli, Theresa Wietelmann, Nathalie Dubois & S. Nemiah Ladd
+
+[Link]
+
+In this study, we analyzed algal proxies in short sediment cores from Swiss Plateau lakes (Greifensee, Murtensee and Zugersee) to trace changes in phytoplankton community composition in response to the strong eutrophication during the 20th century. We used the abundance of phytol and phytosterols (phytol:sterol index, PSI) and compound-specific hydrogen isotope ratios of C16:0 fatty acid and phytol (δ2HC16:0 Acid/Phytol) to reconstruct relative proportions of cyanobacteria and eukaryotic algae. We then compared the lipid-based proxies with plastid and cyanobacterial 23S rRNA gene amplicon sequence variants (ASVs) and cross-validated these sedimentary proxies with published observational data from Buergi et al. (2003) (Aquat. Ecosyst. Health Manag. 6(2),147-158) and Merz et al. (2023) (https://doi.org/10.1038/s41558-023-01615-6) and other historical observations. 
+
+#### This repository contains all datasets from this study and respective R scripts for analysis and visualization (except from raw DNA sequencing data).
+#### Note: Raw DNA sequencing reads are uploaded at the European Nucleotide Archive (ENA) repository [Link].
