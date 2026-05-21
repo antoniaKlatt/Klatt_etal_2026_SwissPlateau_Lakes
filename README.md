@@ -7,3 +7,11 @@ In this study, we analyzed algal proxies in short sediment cores from Swiss Plat
 
 #### This repository contains all datasets from this study and respective R scripts for analysis and visualization (except from raw DNA sequencing data).
 #### Note: Raw DNA sequencing reads are uploaded at the European Nucleotide Archive (ENA) repository [Link].
+
+### 01_Data
+This folder contains lipid and sedDNA datasets from Greifensee, Murtensee and Zugersee. The sedDNA data included here have been already filtered for phytoplankton groups while reads from non-algal groups were excluded. Raw reads can be found elsewhere (ENA repository [Link]).
+
+Note that for Zugersee, data from two different sediment cores are included - one core was taken at the northern basin (ZUG_N), one core was taken at the southern basin (ZUG_S).
+
+### 02_R_scripts
+This folder contains R codes for data analysis and plotting.
