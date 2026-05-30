@@ -1,0 +1,402 @@
+---
+title: "MUR23 phytoplankton proxies (lipid-based and sedDNA)"
+author: "Antonia Klatt"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(caret)
+library(gam)
+library(vegan)
+library(dplyr)
+library(rioja)
+library(ggdendro)
+library(stringr)
+library(tidyr)
+
+#Import data
+
+#age-depth model
+
+MUR23_rplum <- read.csv (here("01_Data","Murtensee","MUR23_D1_91_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select every second row of MUR23_rplum --> specific subsampling depths
+
+MUR23_age_depth <- MUR23_rplum[3:87,] %>% filter(row_number() %% 3 == 1)
+
+
+#Lipid data
+
+##Phytol:sterol index (PSI)
+
+MUR23_D1_phytol.sterol.ratio <- read.csv(here("01_Data","Murtensee","MUR23_D1_phytol.sterol.ratio.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+MUR23_D1_phytol.sterol.ratio$mean_age <- MUR23_age_depth$mean
+
+
+##absolute alcohol concentrations (ug/g TOC)
+
+MUR23_D1_alcohol_conc.a <- read.csv(here("01_Data","Murtensee","MUR23_D1_F3_ug_gTOC.csv"),header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#remove random NAs from import
+
+MUR23_D1_alcohol_conc <- MUR23_D1_alcohol_conc.a[1:29,]
+
+MUR23_D1_alcohol_conc$mean_age <- MUR23_age_depth$mean
+
+
+##relative alcohol concentrations (%)
+
+MUR23_alcohols_rel_conc <- read.csv(here("01_Data","Murtensee","MUR23_D1_F3_rel_conc_woAlkanols.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+row.names(MUR23_alcohols_rel_conc) <- MUR23_age_depth$mean
+
+
+##d2H C16:0 Acid/Phytol
+
+MUR23_D1_d2H_C16.0_phytol <- read.csv(here("01_Data","Murtensee","MUR23_d2H_C16.0_phytol.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+MUR23_D1_d2H_C16.0_phytol$mean_age <- MUR23_age_depth$mean
+
+
+#23S rRNA amplicon sequenceing variants (ASV) data (sedDNA)
+
+#ASV count data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+
+#ASV taxonomy data (NCBI)
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+
+
+#extract ASV counts from Murtensee
+
+#taxonomic phylum level
+
+MUR_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "MUR23")
+
+MUR_ASV_count <- Swiss_Lakes_ASV_count[, MUR_ASV_count.a]
+
+MUR_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+```
+
+## Stratigraphically constrained clustering (CONISS) of relative alcohol concentrations
+
+```{r}
+
+#create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+MUR23_alc_dist <- vegdist(MUR23_alcohols_rel_conc, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+MUR23_alc_CONISS <-chclust(MUR23_alc_dist, method = "coniss")
+
+
+plot(MUR23_alc_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS MUR23 Alcohols")
+
+bstick(MUR23_alc_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS MUR23 alcohols") #3 clusters significant
+
+
+#extract cluster number from chclust
+
+MUR23_alc_groups<-cutree(MUR23_alc_CONISS, k=3) #k=3 since we have 3 significant clusters according to bstick
+
+MUR23_alc_clust_Age <-cbind.data.frame(MUR23_age_depth$mean, MUR23_alc_groups)
+
+colnames(MUR23_alc_clust_Age) <- c("Year", "MUR23_CONISS_cluster")
+
+
+#group1 :2019.2-2007.2
+#group2: 2001.0-1939.8
+#group3: 1933.7-1854.6
+
+#draw lines between edge values from zones in ggplot
+#e.g. (younger value group2 - ((younger group2-older value group1)/2)
+#--> 1936.85; 2004.1
+
+
+#extract dendrogram
+
+MUR23_alc_dendro <- as.dendrogram(MUR23_alc_CONISS)
+
+MUR23_dend_data <- dendro_data(MUR23_alc_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+
+#Code adapted from https://stackoverflow.com/questions/65207033/how-do-i-plot-dendrogram-leaves-by-a-given-value-depth-in-a-sediment-core-rath (accessed 22.07.2025)
+
+dendAge <- approxfun(MUR23_dend_data$labels$x, as.numeric(as.character(MUR23_dend_data$labels$label))) 
+MUR23_dend_data$segments$x <- dendAge(MUR23_dend_data$segments$x)
+MUR23_dend_data$segments$xend <- dendAge(MUR23_dend_data$segments$xend)
+
+
+pdend.MUR <- ggplot(segment(MUR23_dend_data)) +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  ggtitle(expression('CONISS'['Alcohols']), subtitle="CONISS")+
+  geom_vline(xintercept=1936.85, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_vline(xintercept=2004.1, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_x_continuous(limits= c(1854,2023), expand=c(0,0))+
+  scale_y_continuous()+
+  theme_dendro()+
+  theme( plot.title = element_text(size=37.5, hjust = 0.5),
+         plot.subtitle = element_blank(),
+         plot.margin = unit(c(0.5,0.85,0,0.5), "cm"))
+
+```
+
+## create plot with CONISS cluster dendrogram of alcohol concentrations, PSI values, d2H C16:0 Acid/Phytol values, relative abundance of Cyanobacteriota (23S rRNA ASVs)
+
+```{r}
+
+#LOESS fit lipid-based proxies
+
+#according to https://www.statology.org/loess-regression-in-r/ (29.07.2025) and https://www.statology.org/leave-one-out-cross-validation-in-r/ (11.08.2025)
+
+#define k-fold cross validation method with leave-one-out cross-validation (LOOCV)
+
+#perform cross-validation using smoothing spans ranging from 0.1 to 0.9
+
+ctrl <- trainControl(method = "LOOCV")
+grid <- expand.grid(span = seq(0.1, 0.9, len = 9), degree = 1)
+
+#LOESS fit PSI
+
+MUR_PSI_model_cv <- train(phytol.sterol.ratio.wo.4a_17.20_chol ~ mean_age, data = MUR23_D1_phytol.sterol.ratio, 
+                          method = "gamLoess", tuneGrid=grid, trControl = ctrl)
+
+#print results of k-fold cross-validation
+
+print(MUR_PSI_model_cv) #The final values used for the model were span = 0.4 and degree = 1.
+
+#final model with span = 0.5 
+
+MUR_PSI_loess.4 <- loess(phytol.sterol.ratio.wo.4a_17.20_chol ~ mean_age, data = MUR23_D1_phytol.sterol.ratio, span=.4)
+
+MUR_PSI_smooth.a <- as.data.frame(predict(MUR_PSI_loess.4, se = TRUE))
+
+#calculate 95% confidence interval
+#https://stackoverflow.com/questions/22717930/how-to-get-the-confidence-intervals-for-lowess-fit-using-r (01.08.2025)
+
+MUR_PSI_smooth.a$upper <- MUR_PSI_smooth.a$fit + qt(0.975,MUR_PSI_smooth.a$df)*MUR_PSI_smooth.a$se
+
+MUR_PSI_smooth.a$lower <- MUR_PSI_smooth.a$fit - qt(0.975,MUR_PSI_smooth.a$df)*MUR_PSI_smooth.a$se
+
+MUR_PSI_smooth_wAge <- cbind.data.frame(MUR23_D1_phytol.sterol.ratio, MUR_PSI_smooth.a)
+
+
+MUR23_PhySter <- ggplot() +
+  geom_ribbon(data=MUR_PSI_smooth_wAge, aes(x= mean_age, ymax = upper, ymin = lower), fill = "cyan3", 
+              alpha = 0.175) + 
+  geom_line(data = MUR_PSI_smooth_wAge[!is.na(MUR_PSI_smooth_wAge$phytol.sterol.ratio.wo.4a_17.20_chol),] , 
+            aes(x = mean_age, y = phytol.sterol.ratio.wo.4a_17.20_chol), color= 'darkslategray', linewidth= 1) +  
+  scale_x_continuous(limits= c(1854,2023), expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,0.8))+
+  xlab("Year CE") + ylab(expression(atop("phytol:sterol index")))+ 
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_text(size=37.5,color="black"),
+        #axis.text.y = element_blank(),
+        axis.title.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_blank(),
+        axis.line.x =element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position='none',
+        plot.margin = unit(c(0,0.85,0.25,0.5), "cm"))
+
+
+#LOESS fit d2H C16:0/phytol
+
+#EXCLUDE CONTAMINANT SAMPLES (d2H phytol > -300 permill)
+
+MUR23_D1_d2H_C16.0_phytol_wocont <- MUR23_D1_d2H_C16.0_phytol[-which(MUR23_D1_d2H_C16.0_phytol$phytol_d2H.VSMOW > -300),] 
+
+
+MUR_d2H_model_cv <- train(epsilon_C16.0_phytol ~ mean_age, data = na.omit(MUR23_D1_d2H_C16.0_phytol_wocont), 
+                          method = "gamLoess", tuneGrid=grid, trControl = ctrl)
+
+#print results of k-fold cross-validation
+
+print(MUR_d2H_model_cv) #The final values used for the model were span = 0.5 and degree = 1.
+
+#final model with span = 0.5 
+
+MUR_d2H_loess.5 <- loess(epsilon_C16.0_phytol ~ mean_age, data = na.omit(MUR23_D1_d2H_C16.0_phytol_wocont), span=.5)
+
+MUR_d2H_smooth.a <- as.data.frame(predict(MUR_d2H_loess.5, se = TRUE))
+
+#calculate 95% confidence interval
+#https://stackoverflow.com/questions/22717930/how-to-get-the-confidence-intervals-for-lowess-fit-using-r (01.08.2025)
+
+MUR_d2H_smooth.a$upper <- MUR_d2H_smooth.a$fit + qt(0.975,MUR_d2H_smooth.a$df)*MUR_d2H_smooth.a$se
+
+MUR_d2H_smooth.a$lower <- MUR_d2H_smooth.a$fit - qt(0.975,MUR_d2H_smooth.a$df)*MUR_d2H_smooth.a$se
+
+MUR_d2H_smooth_wAge <- cbind.data.frame(na.omit(MUR23_D1_d2H_C16.0_phytol_wocont), MUR_d2H_smooth.a)
+
+
+MUR23_d2H <- ggplot() +
+  geom_ribbon(data=MUR_d2H_smooth_wAge, aes(x= mean_age, ymax = upper, ymin = lower), fill = "cyan3", 
+              alpha = 0.175) + 
+  geom_line(data = MUR_d2H_smooth_wAge[!is.na(MUR_d2H_smooth_wAge$epsilon_C16.0_phytol),] , 
+            aes(x = mean_age, y = epsilon_C16.0_phytol), color= 'darkslategray', linewidth= 1) +  
+  scale_x_continuous(limits= c(1854,2023), expand=c(0,0))+
+  scale_y_continuous(position="right", limits=c(115,305))+
+  xlab(expression(atop("","Year CE"))) +  ylab(expression(atop(delta^2*H['C16:0 Acid/Phytol']~("\u2030"), "")))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_text(size=37.5,color="black"),
+        #axis.text.y = element_blank(),
+        axis.title.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_blank(),
+        axis.line.x =element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position='none',
+        plot.margin = unit(c(0.25,0.85,0.25,0.5), "cm"))
+
+
+#relative abundance Cyanobacteriota (23S rRNA ASVs)
+
+#sum rows with same phylum  
+
+MUR_ASV_count_phylum <- aggregate(.~phylum,MUR_ASV_count,FUN=sum)
+
+#replace colnames with age
+
+colnames(MUR_ASV_count_phylum)
+
+#select specific subsampling depths of DNA (same as lipids)
+
+MUR23_DNA_age <- filter(MUR23_rplum, depth %in% c(11,14,23,29,32,35,38,44,47,53,65,71,77))
+
+#round to full numbers 
+
+MUR23_DNA_age2 <- round(MUR23_DNA_age$mean, digits=0)
+
+#replace sample names with age
+
+colnames(MUR_ASV_count_phylum) <- c("phylum", MUR23_DNA_age2)
+
+MUR_ASV_count_phylum.rev <- rev(MUR_ASV_count_phylum)
+
+#extract Cyanobacteriota
+
+MUR_ASV_count_cyano <- subset(MUR_ASV_count_phylum.rev, grepl('Cyanobacteriota', phylum))
+
+MUR_ASV_count_cyano2 <- as.data.frame(t(MUR_ASV_count_cyano[,1:13]))
+
+MUR_ASV_count_cyano_age_CE <- as.numeric(rownames(MUR_ASV_count_cyano2))
+
+MUR_ASV_count_cyano_rel <- as.numeric(MUR_ASV_count_cyano2[,1:1])
+
+MUR_ASV_count_cyano3 <- cbind.data.frame(MUR_ASV_count_cyano_age_CE, MUR_ASV_count_cyano_rel)
+
+colnames(MUR_ASV_count_cyano3) <- c( "age_CE", "Cyanobacteriota")
+
+pMUR23_DNA_Cyano <- ggplot() +
+  geom_area(data = MUR_ASV_count_cyano3 , aes(x = age_CE, y =Cyanobacteriota), fill="darkslategray", 
+            alpha=0.75)+
+  scale_x_continuous(limits= c(1854,2023), breaks=c(1860,1880,1900,1920,1940,1960,1980,2000,2020),expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,105), breaks=c(25,50,75,100), expand= c(0,0))+
+  xlab(expression(atop("","Year CE"))) + ylab(expression(atop("% Cyanobacteriota")))+ 
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "bottom",
+        plot.margin = unit(c(0,0.65,0.5,0.5), "cm"))
+
+Fig4a <- plot_grid(pdend.MUR, MUR23_PhySter, MUR23_d2H, pMUR23_DNA_Cyano,  
+          nrow=4,rel_heights= c(0.5, 1.05,1.075, 1.425), 
+          axis= "rl", align = "v")
+
+```
+
+# Fig. 4a
+
+```{r, fig.width = 16.5, fig.height = 23.5, echo=FALSE}
+
+plot(Fig4a)
+
+```
+
+## create plot with CONISS cluster dendrogram of alcohol concentrations and absolute concentrations of dinostanol and dinosterol
+
+```{r}
+
+MUR23_dino <- ggplot() +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  #geom_ribbon(data=GRE_dino_smooth_wAge, aes(x= year, ymax = upper, ymin = lower), fill = "plum1", alpha = 0.25) + 
+  geom_line(data = MUR23_D1_alcohol_conc, 
+            aes(x = mean_age, y =  Dinostanol_ug.gTOC), color= '#ccccff', linewidth=1.5) +
+  geom_line(data = MUR23_D1_alcohol_conc, 
+            aes(x = mean_age, y =  Dinosterol_ug.gTOC), color= '#660066', linewidth=1.5) +
+  #reverse depth so it starts at zero
+  #put the y axis labes on the opposite side so when its flipped it will appear at top
+  geom_vline(xintercept=1936.85, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_vline(xintercept=2004.1, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  #reverse depth so it starts at zero
+  scale_x_continuous(limits= c(1854,2023), breaks=c(1860,1880,1900,1920,1940,1960,1980,2000,2020),expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(-10,410),expand= c(0,0))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab(expression(atop("","Year CE"))) +  ylab(expression(atop(mu*g~'/g'['TOC'])))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "bottom",
+        plot.margin = unit(c(0,0.65,0.5,0.5), "cm"))
+
+Fig4b <- plot_grid(pdend.MUR, MUR23_dino, 
+          nrow=2,rel_heights= c(0.5, 1.41), 
+          axis= "rl", align = "v")
+
+```
+
+# Fig. 4b
+
+```{r, fig.width = 14.25, fig.height = 11.15, echo=FALSE}
+
+plot(Fig4b)
+
+```

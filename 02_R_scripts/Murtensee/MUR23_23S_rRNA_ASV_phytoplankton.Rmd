@@ -1,0 +1,355 @@
+---
+title: "MUR23 23S rRNA phytoplankton taxonomic classes"
+author: "Antonia Klatt"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(caret)
+library(gam)
+library(vegan)
+library(dplyr)
+library(rioja)
+library(ggdendro)
+library(stringr)
+library(tidyr)
+
+#Import data
+
+#age-depth model
+
+MUR23_rplum <- read.csv (here("01_Data","Murtensee","MUR23_D1_91_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select every second row of MUR23_rplum --> specific subsampling depths
+
+MUR23_age_depth <- MUR23_rplum[3:87,] %>% filter(row_number() %% 3 == 1)
+
+
+#23S rRNA amplicon sequenceing variants (ASV) data (sedDNA)
+
+#ASV count data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+
+#ASV taxonomy data (NCBI)
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+
+
+#extract ASV counts from Murtensee
+
+#taxonomic phylum level
+
+MUR_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "MUR23")
+
+MUR_ASV_count <- Swiss_Lakes_ASV_count[, MUR_ASV_count.a]
+
+#taxonomic class level
+
+MUR_ASV_count$class <- Swiss_Lakes_ASV_tax$class
+
+
+#sum rows with same class 
+
+MUR_ASV_count_class <- aggregate(.~class,MUR_ASV_count,FUN=sum)
+
+#replace colnames with age
+
+colnames(MUR_ASV_count_class)
+
+#select specific subsampling depths 
+
+MUR23_DNA_age <- filter(MUR23_rplum, depth %in% c(11,14,23,29,32,35,38,44,47,53,65,71,77))
+
+#round to full numbers 
+
+MUR23_DNA_age2 <- round(MUR23_DNA_age$mean, digits=0)
+
+MUR23_DNA_age3 <- as.character(MUR23_DNA_age2)
+
+#replace sample names with age
+
+colnames(MUR_ASV_count_class) <- c("class", MUR23_DNA_age3)
+
+MUR_ASV_count_class.rev <- rev(MUR_ASV_count_class)
+
+
+
+```
+
+## Stratigraphically constrained clustering (CONISS) of 23S rRNA data
+
+```{r}
+
+#create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+MUR.a <- MUR_ASV_count_class.rev[,-14]
+
+rownames(MUR.a) <-MUR_ASV_count_class.rev$class
+
+MUR_ASV_class_for_CONISS <- as.data.frame(t(MUR.a))
+
+
+MUR23_ASV_dist <- vegdist(MUR_ASV_class_for_CONISS, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+MUR_ASV_class_for_CONISS.1 <- MUR_ASV_class_for_CONISS[, apply(MUR_ASV_class_for_CONISS[1:(ncol(MUR_ASV_class_for_CONISS))], 2, sum)!=0]
+
+#comparing dataframes
+
+MUR_ASV_class_for_CONISS.1
+
+MUR23_ASV_dist <- vegdist(MUR_ASV_class_for_CONISS.1, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+MUR23_ASV_CONISS <-chclust(MUR23_ASV_dist, method = "coniss")
+
+plot(MUR23_ASV_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS MUR23 ASV")
+
+bstick(MUR23_ASV_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS MUR23 ASV") 
+#clusters 4 and cluster 5 are significant
+
+#extract dendrogram
+
+MUR23_ASV_dendro <- as.dendrogram(MUR23_ASV_CONISS)
+
+MUR23_ASV_dend_data <- dendro_data(MUR23_ASV_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+#Code adapted from https://stackoverflow.com/questions/65207033/how-do-i-plot-dendrogram-leaves-by-a-given-value-depth-in-a-sediment-core-rath (accessed 22.07.2025)
+
+dendAge <- approxfun(MUR23_ASV_dend_data$labels$x, as.numeric(as.character(MUR23_ASV_dend_data$labels$label))) 
+MUR23_ASV_dend_data$segments$x <- dendAge(MUR23_ASV_dend_data$segments$x)
+MUR23_ASV_dend_data$segments$xend <- dendAge(MUR23_ASV_dend_data$segments$xend)
+
+
+pMUR23_ASV_CONISS <- ggplot(segment(MUR23_ASV_dend_data)) +
+  ggtitle(expression('CONISS'['23S rRNA ASVs']), subtitle="CONISS")+
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_y_continuous()+
+  scale_x_continuous(limits= c(1873,2001))+
+  theme_dendro()+
+  theme(plot.title = element_text(size=42.5, hjust=0.5),
+        plot.subtitle = element_blank(),
+        plot.margin = unit(c(0.5,0.5,0,0.5), "cm"))
+
+
+#before plotting: exclude low abundant classes for plotting with colSums < 10% 
+
+MUR_ASV_count_class.a <- MUR_ASV_count_class[,2:14]
+row.names(MUR_ASV_count_class.a) <- MUR_ASV_count_class$class
+
+
+#remove all rows with colSums <20
+
+MUR_ASV_class_red1 <- MUR_ASV_count_class.a[apply(MUR_ASV_count_class.a, 1, sum) >= 20, ]
+
+MUR_ASV_count_class.b2 <- as.data.frame(t(MUR_ASV_class_red1))
+
+MUR_ASV_count_class.b2$year <- as.numeric(row.names(MUR_ASV_count_class.b2))
+
+
+pCyano <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Cyanophyceae), fill='darkslategray',
+            alpha=0.75, color='darkslategray') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Cyanophyceae (%)')+  
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'darkslategray'), 
+        axis.ticks = element_line(colour = 'darkslategray'), 
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='darkslategray'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='darkslategray'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position= "none",
+        plot.margin = unit(c(0,0.5,-5,0.5), "cm"))
+
+
+pChloro <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Chlorophyceae), fill='aquamarine4',
+            alpha=0.75, color='aquamarine4') +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Chlorophyceae (%)')+  
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'aquamarine4'), 
+        axis.ticks = element_line(colour = 'aquamarine4'),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='aquamarine4'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='aquamarine4'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+
+pTreboux <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Trebouxiophyceae), fill='#9ACAD0',
+            alpha=0.75, color='#9ACAD0') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Trebouxiophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#9ACAD0'), 
+        axis.ticks = element_line(colour = '#9ACAD0'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='#9ACAD0'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='#9ACAD0'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+
+
+pUlvo <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Ulvophyceae), fill='#84AD84',
+            alpha=0.75, color='#84AD84') +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Ulvophyceae (%)')+     
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#84AD84'), 
+        axis.ticks = element_line(colour = '#84AD84'), 
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='#84AD84'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='#84AD84'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+
+
+pEustig <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Eustigmatophyceae), fill='tan3',
+            alpha=0.60, color='tan3') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Eustigmatophyceae (%)')+     
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'tan3'),
+        axis.ticks = element_line(colour = 'tan3'),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='tan3'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='tan3'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+
+
+pCoscino <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Coscinodiscophyceae), fill='#cc99cc',
+            alpha=0.75, color='#cc99cc') +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Coscinodiscophyceae (%)')+     
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#b88ab8'),
+        axis.ticks = element_line(colour = '#b88ab8'),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='#b88ab8'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='#b88ab8'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+
+
+pFragi<- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y = Fragilariophyceae), fill='#660066',
+            alpha=0.5, color='#660066') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Fragilariophyceae (%)')+     
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#660066'),
+        axis.ticks = element_line(colour = '#660066'),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=42.5,color='#660066'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=42.5,color='#660066'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+
+
+pBangio <- ggplot()+
+  geom_area(data=MUR_ASV_count_class.b2, aes(x = year, y =Bangiophyceae), fill='red4',
+            alpha=0.5, color='red4') +
+  scale_y_continuous(position='left', limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1873,2001), breaks=c(1880,1900,1920,1940,1960,1980,2000))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Bangiophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line.y = element_line(colour = 'red4'),
+        axis.ticks.y = element_line(colour = 'red4'),
+        axis.line.x = element_line(colour = 'black'),
+        axis.ticks.x = element_line(colour = 'black'),
+        axis.text.x = element_text(size=42.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=42.5,color="red4"),
+        axis.title.x = element_text(size=42.5,color="black"),
+        axis.title.y = element_text(size=42.5,color="red4"),
+        legend.position= "none",
+        plot.margin = unit(c(-5,0.5,0.5,0.5), "cm"))
+
+
+Fig5 <- plot_grid(pMUR23_ASV_CONISS, pCyano, pChloro, pTreboux, pUlvo,  pEustig, pCoscino, pFragi, pBangio,
+          nrow=9, rel_heights = c(0.5,1.4725, 1,1,1,1, 1,1, 2.025), axis= "rl", align= "v")
+
+```
+
+# Fig. 5
+
+```{r, fig.width = 17.5, fig.height = 42.5, echo=FALSE}
+
+plot(Fig5)
+
+```
