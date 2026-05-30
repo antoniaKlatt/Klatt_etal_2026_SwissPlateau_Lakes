@@ -1,0 +1,370 @@
+---
+title: "GRE18 GRE24 phytoplankton proxies (lipid-based and sedDNA)"
+author: "Antonia Klatt"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(caret)
+library(gam)
+library(vegan)
+library(dplyr)
+library(rioja)
+library(ggdendro)
+library(stringr)
+library(tidyr)
+
+
+#import data 
+
+#lipid data (GRE18)
+
+##Phytol:sterol index (PSI)
+
+GRE18_phytol.sterol.ratio <- read.csv(here("01_Data","Greifensee","GRE18_phytol.sterol.ratio.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+##absolute alcohol concentrations (ug/g TOC)
+
+GRE18_alcohols_ug_gTOC <- read.csv(here("01_Data","Greifensee", "GRE18_R_files/GRE18_F3_ug_gTOC.csv"),  header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+
+##relative alcohol concentrations (%)
+
+GRE18_alcohols_rel_conc.a <- read.csv(here("01_Data","Greifensee","GRE18_F3_rel_conc_woAlkanols.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+##remove random NA columns from import and year
+
+GRE18_alcohols_rel_conc <- GRE18_alcohols_rel_conc.a[,1:30]
+
+
+#d2H C16:0 Acid/Phytol
+
+GRE18_d2H_C16.0_phytol <- read.csv(here("01_Data","Greifensee","GRE18_d2H_C16.0_phytol.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+
+#23S rRNA amplicon sequenceing variants (ASV) data (GRE24) (sedDNA)
+
+#ASV count data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA","COUNT_phytoplankton.tab"))
+
+#ASV taxonomy data (NCBI)
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA","TAXA_phytoplankton.tab"))
+
+
+#extract ASV counts from Greifensee
+
+#taxonomic phylum level
+
+GRE_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "GRE24")
+
+GRE_ASV_count <- Swiss_Lakes_ASV_count[, GRE_ASV_count.a]
+
+GRE_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+```
+
+## Stratigraphically constrained clustering (CONISS) of relative alcohol concentrations
+
+```{r}
+
+#create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+GRE18_alcohols_rel_conc.red <-GRE18_alcohols_rel_conc[,2:30]
+
+row.names(GRE18_alcohols_rel_conc.red) <- GRE18_alcohols_rel_conc$year
+
+GRE18_alc_dist <- vegdist(GRE18_alcohols_rel_conc.red , method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+GRE18_alc_CONISS <-chclust(GRE18_alc_dist, method = "coniss")
+
+
+plot(GRE18_alc_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS GRE18 Alcohols")
+
+bstick(GRE18_alc_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS GRE18 alcohols") #2 clusters significant
+
+#extract cluster number from chclust
+
+GRE18_alc_groups<-cutree(GRE18_alc_CONISS, k=2) #k=2 since we have 2 significant clusters according to bstick
+
+GRE18_alc_clust_Age <-cbind.data.frame(GRE18_alcohols_rel_conc$year, GRE18_alc_groups)
+
+colnames(GRE18_alc_clust_Age) <- c("Year", "GRE18_CONISS_cluster")
+
+#extract dendrogram
+
+GRE18_alc_dendro <- as.dendrogram(GRE18_alc_CONISS)
+
+GRE18_dend_data <- dendro_data(GRE18_alc_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+
+#Code adapted from https://stackoverflow.com/questions/65207033/how-do-i-plot-dendrogram-leaves-by-a-given-value-depth-in-a-sediment-core-rath (accessed 22.07.2025)
+
+dendAge <- approxfun(GRE18_dend_data$labels$x, as.numeric(as.character(GRE18_dend_data$labels$label))) 
+GRE18_dend_data$segments$x <- dendAge(GRE18_dend_data$segments$x)
+GRE18_dend_data$segments$xend <- dendAge(GRE18_dend_data$segments$xend)
+
+
+pdend.GRE <- ggplot(segment(GRE18_dend_data)) +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  ggtitle(expression('CONISS'['Alcohols']), subtitle="CONISS")+
+  scale_x_continuous(limits= c(1818,2018),breaks=c(1850,1900,1950,2000), expand= c(0,0))+
+  geom_vline(xintercept=1940.5, color = "lightsteelblue4", linetype="dashed", linewidth=1)+
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_y_continuous()+
+  theme_dendro()+
+  theme( plot.title = element_text(size=37.5, hjust=0.5),
+         plot.subtitle = element_blank(),
+         plot.margin = unit(c(1,0.5,0,0.5), "cm"))
+
+```
+
+## create plot with CONISS cluster dendrogram of alcohol concentrations, PSI values, d2H C16:0 Acid/Phytol values, relative abundance of Cyanobacteriota (23S rRNA ASVs)
+
+```{r}
+
+#LOESS fit lipid-based proxies
+
+#according to https://www.statology.org/loess-regression-in-r/ (29.07.2025) and https://www.statology.org/leave-one-out-cross-validation-in-r/ (11.08.2025)
+
+#define k-fold cross validation method with leave-one-out cross-validation (LOOCV)
+
+#perform cross-validation using smoothing spans ranging from 0.1 to 0.9
+
+ctrl <- trainControl(method = "LOOCV")
+grid <- expand.grid(span = seq(0.1, 0.9, len = 9), degree = 1)
+
+#LOESS fit PSI
+
+GRE_PSI_model_cv <- train(phytol.sterol.ratio.wo.stigmasterol ~ year, data = GRE18_phytol.sterol.ratio, 
+                          method = "gamLoess", tuneGrid=grid, trControl = ctrl)
+
+#print results of k-fold cross-validation
+
+print(GRE_PSI_model_cv) #The final values used for the model were span = 0.5 and degree = 1.
+
+#final model with span = 0.5 
+
+GRE_PSI_loess.5 <- loess(phytol.sterol.ratio.wo.stigmasterol ~ year, data = GRE18_phytol.sterol.ratio, span=.5)
+
+GRE_PSI_smooth.a <- as.data.frame(predict(GRE_PSI_loess.5, se = TRUE))
+
+#calculate 95% confidence interval
+#https://stackoverflow.com/questions/22717930/how-to-get-the-confidence-intervals-for-lowess-fit-using-r (01.08.2025)
+
+GRE_PSI_smooth.a$upper <- GRE_PSI_smooth.a$fit + qt(0.975,GRE_PSI_smooth.a$df)*GRE_PSI_smooth.a$se
+
+GRE_PSI_smooth.a$lower <- GRE_PSI_smooth.a$fit - qt(0.975,GRE_PSI_smooth.a$df)*GRE_PSI_smooth.a$se
+
+GRE_PSI_smooth_wAge <- cbind.data.frame(GRE18_phytol.sterol.ratio, GRE_PSI_smooth.a)
+
+
+GRE18_PhySter <- ggplot() +
+  geom_ribbon(data=GRE_PSI_smooth_wAge, aes(x= year, ymax = upper, ymin = lower), fill = "cyan3", alpha = 0.175) + 
+  geom_line(data = GRE_PSI_smooth_wAge[!is.na(GRE_PSI_smooth_wAge$phytol.sterol.ratio.wo.stigmasterol),] , 
+            aes(x = year, y = phytol.sterol.ratio.wo.stigmasterol), color= 'darkslategray', linewidth= 1) +  
+  scale_x_continuous(limits= c(1818,2018),breaks=c(1825,1850,1900,1950,2000), expand= c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,0.8))+
+  xlab("Year CE") + ylab(expression(atop("phytol:sterol index")))+ 
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"), 
+        axis.line.x= element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x= element_blank(),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.position='none',
+        plot.margin = unit(c(0,0.5,0.25,0.5), "cm"))
+
+
+#LOESS fit d2H C16:0/phytol
+
+GRE_d2H_model_cv <- train(epsilon_C16.0.phytol ~ Year, data = GRE18_d2H_C16.0_phytol, 
+                          method = "gamLoess", tuneGrid=grid, trControl = ctrl)
+
+#print results of k-fold cross-validation
+
+print(GRE_d2H_model_cv) #The final values used for the model were span = 0.9 and degree = 1.
+
+#final model with span = 0.5 
+
+GRE_d2H_loess.9 <- loess(epsilon_C16.0.phytol ~ Year, data = GRE18_d2H_C16.0_phytol, span=.9)
+
+GRE_d2H_smooth.a <- as.data.frame(predict(GRE_d2H_loess.9, se = TRUE))
+
+#calculate 95% confidence interval
+#https://stackoverflow.com/questions/22717930/how-to-get-the-confidence-intervals-for-lowess-fit-using-r (01.08.2025)
+
+GRE_d2H_smooth.a$upper <- GRE_d2H_smooth.a$fit + qt(0.975,GRE_d2H_smooth.a$df)*GRE_d2H_smooth.a$se
+
+GRE_d2H_smooth.a$lower <- GRE_d2H_smooth.a$fit - qt(0.975,GRE_d2H_smooth.a$df)*GRE_d2H_smooth.a$se
+
+GRE_d2H_smooth_wAge <- cbind.data.frame(GRE18_d2H_C16.0_phytol, GRE_d2H_smooth.a)
+
+
+GRE18_d2H <- ggplot() +
+  geom_ribbon(data=GRE_d2H_smooth_wAge, aes(x= Year, ymax = upper, ymin = lower), fill = "cyan3", alpha = 0.175) + 
+  geom_line(data = GRE_d2H_smooth_wAge[!is.na(GRE_d2H_smooth_wAge$epsilon_C16.0.phytol),] , 
+            aes(x = Year, y = epsilon_C16.0.phytol), color= 'darkslategray', linewidth= 1) +  
+  scale_x_continuous(limits= c(1818,2018),breaks=c(1825,1850,1900,1950,2000), expand= c(0,0))+
+  scale_y_continuous(position="right", limits=c(240,320))+
+  xlab(expression(atop("","Year CE")))  +  ylab(expression(atop(delta^2*H['C16:0 Acid/Phytol']~("\u2030"))))+
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"), 
+        axis.text.x = element_blank(),
+        axis.ticks.x= element_blank(),
+        axis.line.x= element_blank(),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.position='none',
+        plot.margin = unit(c(0.25,0.5,0.25,0.5), "cm"))
+
+
+#relative abundance Cyanobacteriota (23S rRNA ASVs)
+
+#re-order dataframe to have samples in the right order
+
+#get colnames
+
+colnames(GRE_ASV_count)
+#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
+#[6] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36"
+#[11] "GRE24SC.02DNA38.40" "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62"
+#[16] "GRE24SC.02DNA8.10"  "phylum"    
+
+GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(5,12,14,16,1,2,3,4,6,7,8,9,10,11,13,15,17)])
+
+#sum rows with same phylum  
+
+GRE_ASV_count_phylum <- aggregate(.~phylum,GRE_ASV_count_ord,FUN=sum)
+
+colnames(GRE_ASV_count_phylum) <- c("phylum", rev(c("2012", "2005", "1999", "1993", "1987", "1981", "1970",
+                                                    "1963", "1955", "1948", "1928", "1918", "1898", "1878",
+                                                    "1818", "1768")))
+
+#The age model is based on varve counting down to 24 cm (we sliced up the cores in three - year intervals). 
+#Below that, the ages are based on the age model from McKenzie and Hollander, 1993, and are assumed to be 5 years/cm. 
+#These samples integrate 2 cm and represent ~ 10 years of accumulation, as opposed to 3 years per sample in the upper part of the core.
+
+#extract Cyanobacteriota
+
+GRE_ASV_count_cyano <- subset(GRE_ASV_count_phylum, grepl('Cyanobacteriota', phylum))
+
+GRE_ASV_count_cyano.a <- as.data.frame(t(GRE_ASV_count_cyano))
+
+GRE_ASV_count_cyano2 <- as.data.frame(GRE_ASV_count_cyano.a[2:17,])
+
+GRE_ASV_count_cyano_age_CE.a <- as.numeric(rownames(GRE_ASV_count_cyano.a))
+
+GRE_ASV_count_cyano_age_CE <- GRE_ASV_count_cyano_age_CE.a[2:17]
+
+GRE_ASV_count_cyano_rel <- as.numeric(GRE_ASV_count_cyano2[,1:1])
+
+GRE_ASV_count_cyano3 <- cbind.data.frame(GRE_ASV_count_cyano_age_CE, GRE_ASV_count_cyano_rel)
+
+colnames(GRE_ASV_count_cyano3) <- c( "age_CE", "Cyanobacteriota")
+
+#remove oldest sample, since it is not relevant for comparison with lipid proxies
+
+pGRE24_DNA_Cyano <- ggplot() +
+  geom_area(data = GRE_ASV_count_cyano3 , aes(x = age_CE, y =Cyanobacteriota), fill="darkslategray", 
+            alpha=0.75)+
+  scale_x_continuous(limits= c(1818,2018),breaks=c(1830,1850,1870,1890,1910,1930,1950,1970,1990,2010), 
+                     expand= c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,105), breaks=c(25,50,75,100), expand= c(0,0))+
+  xlab(expression(atop("","Year CE"))) + ylab(expression(atop("% Cyanobacteriota")))+ 
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "bottom",
+        plot.margin = unit(c(0,0.5,0.5,0.5), "cm"))
+
+Fig2a <- plot_grid(pdend.GRE, GRE18_PhySter, GRE18_d2H, pGRE24_DNA_Cyano, 
+          nrow=4,rel_heights= c(0.5, 1.05,1.075, 1.425), 
+          axis= "rl", align = "v")
+
+```
+
+# Fig. 2a
+
+```{r, fig.width = 16.5, fig.height = 23.5, echo=FALSE}
+
+plot(Fig2a)
+
+```
+
+## create plot with CONISS cluster dendrogram of alcohol concentrations and absolute concentrations of dinostanol and dinosterol
+
+```{r}
+
+pGRE18_dino <- ggplot() +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_vline(xintercept=1940.5, color = "lightsteelblue4", linetype="dashed", linewidth=1)+
+  geom_line(data = GRE18_alcohols_ug_gTOC, 
+            aes(x = year, y =  Dinostanol.plus.isomer.ug.gTOC), color= '#ccccff', linewidth=1.5) +
+  geom_line(data = GRE18_alcohols_ug_gTOC, 
+            aes(x = year, y =  Dinosterol.ug.gTOC), color= '#660066', linewidth=1.5) +
+  scale_x_continuous(limits= c(1818,2018),breaks=c(1830,1850,1870,1890,1910,1930,1950,1970,1990,2010), 
+                     expand= c(0,0))+
+  scale_y_continuous(position="left", limits=c(-10,710),expand= c(0,0))+
+  xlab(expression(atop("","Year CE"))) +  ylab(expression(atop(mu*g~'/g'['TOC'])))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "bottom",
+        plot.margin = unit(c(0,0.5,0.5,0.5), "cm"))
+
+Fig2b <- plot_grid(pdend.GRE, pGRE18_dino, 
+          nrow=2,rel_heights= c(0.5, 1.41), 
+          axis= "rl", align = "v")
+
+```
+
+# Fig. 2b
+
+```{r, fig.width = 14.25, fig.height = 11.15, echo=FALSE}
+
+plot(Fig2b)
+
+```
