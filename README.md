@@ -11,6 +11,8 @@ In this study, we analyzed algal proxies in short sediment cores from Swiss Plat
 ### 01_Data
 This folder contains lipid and sedDNA datasets from Greifensee, Murtensee and Zugersee. 
 
+For Murtensee and Zugersee, input data to run the 'rplum' package (210Pb and 226Ra and 137Cs) for age-depth modeling are included here as well.
+
 The sedDNA data included here have been processed by the dada2 pipeline incl. taxonomic assignments by the Basic Local Alignment Search Tool (BLAST) against the National Center for Biotechnology Information (NCBI) database (accessed on 20th November 2025) and filtered for phytoplankton groups while reads from non-algal groups have been excluded. Absolute algal ASV counts from each sample were normalized by total sum scaling. 
 
 Raw sequencing reads from sedDNA samples can be found elsewhere (ENA repository [Link]).
@@ -20,4 +22,4 @@ R codes for running the dada2 pipeline and filtering for phytoplankton groups wi
 Note that for Greifensee, lipid data are based on sediment cores collected in 2018, while sedDNA data are from a newly collected core from 2024. For Zugersee, data from two different sediment cores are included - one core was taken at the northern basin (ZUG_N), one core was taken at the southern basin (ZUG_S).
 
 ### 02_R_scripts
-This folder contains R codes for data analysis and plotting.
+This folder contains R codes for data analysis and plotting as well as the rplum code to create the age-depth model for Murtensee and Zugersee.
