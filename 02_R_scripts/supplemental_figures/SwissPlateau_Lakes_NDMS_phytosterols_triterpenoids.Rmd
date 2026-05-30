@@ -1,0 +1,238 @@
+---
+title: "Swiss Plateau lakes NMDS phytosterols triterpenoids"
+author: "Antonia Klatt"
+date: "2026-05-29"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(vegan)
+library(dplyr)
+library(patchwork)
+library(ggrepel)
+
+#Import lipid data
+
+#datafiles contain relative concentrations of phytosterols and triterpenoids
+
+#Greifensee
+
+GRE18_F3_phytoTri <- read.csv(here("01_Data","Greifensee","GRE18_F3_rel_conc_phytoTri.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#Murtensee
+
+MUR23_D1_F3_phytoTri <- read.csv(here("01_Data","Murtensee","MUR23_F3_rel_conc_phytoTri.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+
+#Zugersee
+
+#northern basin
+
+ZUG24_N_F3_phytoTri.a <- read.csv(here("01_Data","Zugersee","ZUG24_N_F3_relConc_phytoTri.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+ZUG24_N_F3_phytoTri <- ZUG24_N_F3_phytoTri.a[,1:14]
+
+#southern basin
+
+ZUG24_S_F3_phytoTri <- read.csv(here("01_Data","Zugersee","ZUG24_S_F3_relConc_phytoTri.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+```
+
+## Non-metric multidimensional scaling (NMDS) of phytosterols and triterpenoids
+
+```{r}
+
+meta.GRE18_phytoTri <-metaMDS(GRE18_F3_phytoTri[,2:19], k=3, autotransform= FALSE, try= 100, trymax= 100, 
+                              distance = "bray") #stress 0.063
+
+
+NMDS_GRE18_phytoTri_sample <- as.data.frame(scores(meta.GRE18_phytoTri, "sites")) #sites is the same as the sample 
+
+NMDS_GRE18_phytoTri_sample$Age <- GRE18_F3_phytoTri$year
+
+NMDS_GRE18_phytoTri_species <- as.data.frame(scores(meta.GRE18_phytoTri, "species")) #species is sterols
+
+
+pGRE_NMDS <- ggplot() + 
+  ggtitle("GRE18 stress: 0.054", subtitle="GRE18 stress: 0.054")+
+  geom_text(data=NMDS_GRE18_phytoTri_species,aes(x=NMDS1,y=NMDS2), label= c("brassicasterol", 'campesterol & x', 
+                                                                            "campestanol & x", "stigmasterol",
+                                                                            expression('4'*alpha*'-desmethyl-dinosterol'), 
+                                                                            "sitosterol", "chondrillasterol",
+                                                                            "sitostanol", 
+                                                                    expression('4'*alpha*'-24-dimethyl-5'*alpha*'-cholestan-3'*beta*'-ol'),
+                                                                            expression(beta*'-amyrin & x'),
+                                                                            "dehydrodinosterol", "dinosterol",
+                                                                    "22-dihydrochondrillasterol?",
+                                                                    expression(atop(alpha*"-amyrin & lupeol")),
+                                                                            expression('4'*alpha*'-23,24-cholest-17,20-en-3'*beta*'-ol'),
+                                                                    "triterpenoid m/z 371 & x",
+                                                                            "dinostanol", "dinostanol isomer?"), 
+            alpha=0.75, color="slategray", size= 5.5)+
+  xlab(expression(atop("", "NMDS1")))+ylab(expression(atop("NMDS2")))+
+  xlim(-0.65,1.1)+ylim(-0.5,0.4)+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        plot.title = element_text(size=30, face= 'bold'),
+        plot.subtitle = element_text(color= 'white', size=15),
+        legend.text=element_text(size=27.5),
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        legend.key.spacing.y = unit(0.5, 'cm'),
+        legend.position = "none",
+        axis.text.x = element_text(size=30, color= "black"),
+        axis.text.y = element_text(size=30, color= "black"),
+        axis.title.x = element_text(size = 30 ),
+        axis.title.y = element_text(size = 30),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.75),
+        plot.margin = unit(c(0.5,2,0.5,0.5), "cm"))
+
+
+meta.MUR23_phytoTri <-metaMDS(MUR23_D1_F3_phytoTri, k=3, autotransform= FALSE, try= 100, trymax= 100, 
+                              distance = "bray") #stress 0.063
+
+
+NMDS_MUR23_phytoTri_sample <- as.data.frame(scores(meta.MUR23_phytoTri, "sites")) #sites is the same as the sample 
+
+NMDS_MUR23_phytoTri_species <- as.data.frame(scores(meta.MUR23_phytoTri, "species")) #species is sterols
+
+
+pMUR_NMDS <- ggplot() + 
+  ggtitle("MUR23 stress: 0.063", subtitle="MUR23 stress: 0.063")+
+  geom_text(data=NMDS_MUR23_phytoTri_species,aes(x=NMDS1,y=NMDS2), label= c("brassicasterol", "campesterol co-eluter", "campesterol", 
+                                                                            "campestanol & x", "stigmasterol", 
+                                                                            "sitosterol & x",
+                                                                            "sitostanol", expression(beta*'-amyrin & x'),
+                                                                            "dehydrodinosterol", "dinosterol",
+                                                                            expression(atop(alpha*"-amyrin & x")),
+                                                                            expression('4'*alpha*'-23,24-cholest-17,20-en-3'*beta*'-ol'),
+                                                                            "triterpenoid m/z 371 & x",
+                                                                            "dinostanol", "dinostanol isomer?"), 
+            alpha=0.75, color="slategray", size= 5.5)+ 
+  xlim(-0.4,0.7)+ylim(-0.35,0.35)+
+  xlab(expression(atop("", "NMDS1")))+ylab(expression(atop("NMDS2")))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        plot.title = element_text(size=30, face= 'bold'),
+        plot.subtitle = element_text(color= 'white', size=15),
+        legend.text=element_text(size=27.5),
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        legend.key.spacing.y = unit(0.5, 'cm'),
+        legend.position = "none",
+        axis.text.x = element_text(size=30, color= "black"),
+        axis.text.y = element_text(size=30, color= "black"),
+        axis.title.x = element_text(size = 30 ),
+        axis.title.y = element_text(size = 30),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.75),
+        plot.margin = unit(c(0.5,2,0.5,0.5), "cm"))
+
+
+meta.ZUG24_N_phytoTri <-metaMDS(ZUG24_N_F3_phytoTri[,1:14], k=2, autotransform= FALSE, try= 100, trymax= 100, 
+                                distance = "bray") #stress 0.056
+
+
+NMDS_ZUG24_N_phytoTri_sample <- as.data.frame(scores(meta.ZUG24_N_phytoTri, "sites")) #sites is the same as the sample 
+
+NMDS_ZUG24_N_phytoTri_species <- as.data.frame(scores(meta.ZUG24_N_phytoTri, "species")) #species is sterols
+
+
+pZUG_N_NMDS <- ggplot() + 
+  ggtitle("ZUG24_N stress: 0.056", subtitle="ZUG24_N stress: 0.056")+
+  geom_text(data=NMDS_ZUG24_N_phytoTri_species,aes(x=NMDS1,y=NMDS2), label= c("brassicasterol", 'campesterol & x', 
+                                                                              "campestanol & x", "stigmasterol",
+                                                                              expression('4'*alpha*'-desmethyl-dinosterol'), 
+                                                                              "sitosterol&chondrillasterol",
+                                                                              "sitostanol",  
+                                                                              expression(beta*'-amyrin & x'), 
+                                                                              "dehydrodinosterol", "dinosterol", 
+                                                                              expression(alpha*"-amyrin & lupeol & x"),
+                                                                              "triterpenoid m/z 371 & alcohol m/z 410",
+                                                                              "dinostanol", "dinostanol isomer?"), 
+            alpha=0.75, color="slategray", size= 5.5)+ # add the species labels# add the species labels
+  xlim(-0.25,0.35)+ylim(-0.5,0.25)+
+  xlab(expression(atop("", "NMDS1")))+ylab(expression(atop("NMDS2")))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        plot.title = element_text(size=30, face= 'bold'),
+        plot.subtitle = element_text(color= 'white', size=15),
+        legend.text=element_text(size=27.5),
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        legend.key.spacing.y = unit(0.5, 'cm'),
+        legend.position = "none",
+        axis.text.x = element_text(size=30, color= "black"),
+        axis.text.y = element_text(size=30, color= "black"),
+        axis.title.x = element_text(size = 30 ),
+        axis.title.y = element_text(size = 30),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.75),
+        plot.margin = unit(c(0.5,2,0.5,0.5), "cm"))
+
+
+meta.ZUG24_S_phytoTri <-metaMDS(ZUG24_S_F3_phytoTri[1:14,2:15], k=2, autotransform= FALSE, try= 100, trymax= 100, 
+                                distance = "bray") #stress 0.056
+
+
+NMDS_ZUG24_S_phytoTri_sample <- as.data.frame(scores(meta.ZUG24_S_phytoTri, "sites")) #sites is the same as the sample 
+
+NMDS_ZUG24_S_phytoTri_species <- as.data.frame(scores(meta.ZUG24_S_phytoTri, "species")) #species is sterols
+
+
+pZUG_S_NMDS <-ggplot() + 
+  ggtitle("ZUG24_S stress: 0.031", subtitle="ZUG24_S stress: 0.031")+
+  geom_text(data=NMDS_ZUG24_S_phytoTri_species,aes(x=NMDS1,y=NMDS2), label= c("brassicasterol", 'campesterol & x', 
+                                                                              "campestanol & x", "stigmasterol",
+                                                                              expression('4'*alpha*'-desmethyl-dinosterol'), 
+                                                                              "sitosterol&chondrillasterol",
+                                                                              "sitostanol",  
+                                                                              expression(beta*'-amyrin & x'), 
+                                                                              "dehydrodinosterol", "dinosterol", 
+                                                                              expression(alpha*"-amyrin & lupeol & x"),
+                                                                              "alcohol m/z 410",
+                                                                              "dinostanol", "dinostanol isomer?"), 
+            alpha=0.75, color="slategray", size= 5.5)+ # add the species labels# add the species labels
+  xlim(-0.4,0.6)+ylim(-0.35,0.35)+
+  xlab(expression(atop("", "NMDS1")))+ylab(expression(atop("NMDS2")))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        plot.title = element_text(size=30, face="bold"),
+        plot.subtitle = element_text(color= 'white', size=15),
+        legend.text=element_text(size=27.5),
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        legend.key.spacing.y = unit(0.5, 'cm'),
+        legend.position = "none",
+        #legend.background = element_rect(fill="white",size=0.5, linetype="solid", colour ="black"),
+        axis.text.x = element_text(size=30, color= "black"),
+        axis.text.y = element_text(size=30, color= "black"),
+        axis.title.x = element_text(size = 30 ),
+        axis.title.y = element_text(size = 30),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.75),
+        plot.margin = unit(c(0.5,2,0.5,0.5), "cm"))
+
+
+FigS4ab <- pGRE_NMDS + pMUR_NMDS+plot_layout(ncol=1)
+
+FigS4cd <- pZUG_N_NMDS + pZUG_S_NMDS+plot_layout(ncol=1)
+
+FigS4 <- plot_grid(FigS4ab, FigS4cd, ncol=2, rel_widths = c(1,1), axis= "tb", align= "h")
+
+```
+
+# Fig. S4
+
+```{r, fig.width = 25, fig.height = 20, echo=FALSE}
+
+plot(FigS4)
+
+```
+

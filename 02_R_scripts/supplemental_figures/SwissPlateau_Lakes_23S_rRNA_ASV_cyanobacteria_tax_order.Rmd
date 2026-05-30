@@ -1,0 +1,567 @@
+---
+title: "Swiss Plateau Lakes 23S rRNA ASV cyanobacteria taxonomic order"
+author: "Antonia Klatt"
+date: "2026-05-30"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(vegan)
+library(dplyr)
+library(patchwork)
+library(ggrepel)
+library(stringr)
+library(tidyr)
+library(reshape2)
+
+#Import data
+
+#age-depth models 
+
+#Murtensee
+
+MUR23_rplum <- read.csv (here("01_Data","Murtensee","MUR23_D1_91_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select subsampling depths
+
+MUR23_DNA_age <- filter(MUR23_rplum, depth %in% c(11,14,23,29,32,35,38,44,47,53,65,71,77)) #exctract DNA depths
+
+#round sample ages to full numbers 
+
+MUR23_DNA_age2 <- round(MUR23_DNA_age$mean, digits=0)
+
+#Zugersee
+
+#northern basin
+
+#import age-depth from both basins
+
+ZUG24_N_rplum <- read.csv (here("01_Data","Zugersee","ZUG24_N_51_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select every second row rplum file --> specific subsampling depths of ASVs
+
+colnames(ZUG24_N_rplum) <- c("depth","min.95" ,"max.95", "median",  "mean" )
+
+ZUG.N_DNA_age <- filter(ZUG24_N_rplum,  depth %in% c(2,5,8,11,14,17,20,23,26,32,35,38,41,48))
+
+ZUG.N_DNA_age2 <- round(ZUG.N_DNA_age$mean, digits=0)
+
+ZUG.N_DNA_age3 <- as.character(ZUG.N_DNA_age2)
+
+#southern basin
+
+ZUG24_S_rplum2 <- read.csv (here("01_Data","Zugersee","ZUG24_S_46_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#for age model, sandy layers were excluded beforehand --> better fit with caesium peaks
+
+#select specific subsampling depths of ASVs
+
+colnames(ZUG24_S_rplum2) <- c("depth","min.95" ,"max.95", "median",  "mean" )
+
+ZUG.S_DNA_age <- filter(ZUG24_S_rplum2, depth %in% c(2,5,8,11,14,17,20,23,26,29,32,35,38,41))
+
+ZUG.S_DNA_age2 <- round(ZUG.S_DNA_age$mean, digits=0)
+
+ZUG.S_DNA_age3 <- as.character(ZUG.S_DNA_age2)
+
+
+
+
+#23S rRNA ASV sedDNA data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA","COUNT_phytoplankton.tab"))
+
+#ASV count file is normalized -> sum scaling normalization 
+#absolute values from each sample transformed in % to account for variable sequencing depths of samples 
+
+str(Swiss_Lakes_ASV_count)
+
+#check out ASV Taxonomies
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA","TAXA_phytoplankton.tab"))
+
+```
+
+## plotting cyanobacterial 23S rRNA ASv from Swiss Plateau lakes on taxonomic order level 
+
+```{r}
+
+#Greifensee
+
+GRE_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "GRE24")
+
+GRE_ASV_count <- Swiss_Lakes_ASV_count[, GRE_ASV_count.a]
+
+GRE_ASV_count$order <- Swiss_Lakes_ASV_tax$order
+
+GRE_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+
+#re-order dataframe to have samples in the right order
+
+#get colnames
+
+colnames(GRE_ASV_count)
+#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
+#[6] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36"
+#[11] "GRE24SC.02DNA38.40" "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62"
+#[16] "GRE24SC.02DNA8.10"  "phylum"    
+
+GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(5,12,14,16,1,2,3,4,6,7,8,9,10,11,13,15,17,18)])
+
+#extract Cyanobacteriota 
+
+GRE_ASV_count_cyano_phylum <- subset(GRE_ASV_count_ord, grepl('Cyanobacteriota', phylum))
+
+GRE_ASV_count_cyano_phylum.b <- GRE_ASV_count_cyano_phylum[,2:18] #exclude phylum column
+
+#summarize by order level
+
+GRE_ASV_count_cyano_order_sum <- aggregate(.~order,GRE_ASV_count_cyano_phylum.b,FUN=sum)
+
+#add samples ages
+
+colnames(GRE_ASV_count_cyano_order_sum) <- c('order',rev(c("2012", "2005", "1999", "1993", "1987", "1981", "1970",
+                                                           "1963", "1955", "1948", "1928", "1918", "1898", "1878",
+                                                           "1818", "1768")))
+
+#The age model is based on varve counting down to 24 cm (we sliced up the cores in three - year intervals). 
+#Below that, the ages are based on the age model from McKenzie and Hollander, 1993, and are assumed to be 5 years/cm. 
+#These samples integrate 2 cm and represent ~ 10 years of accumulation, as opposed to 3 years per sample in the upper part of the core.
+
+
+GRE_ASV_cyano_order_sum.a <- as.data.frame(t(GRE_ASV_count_cyano_order_sum))
+
+GRE_ASV_cyano_order_sum2a <- as.data.frame(GRE_ASV_cyano_order_sum.a[2:17,]) #exclude extra row
+
+GRE_ASV_cyano_order_sum2 <- cbind.data.frame(as.numeric(GRE_ASV_cyano_order_sum2a$V1), #need to convert to numeric values
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V2),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V3),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V4),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V5),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V6),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V7),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V8),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V9),
+                                             as.numeric(GRE_ASV_cyano_order_sum2a$V10))
+
+#excluce columns with only zeros
+
+colnames(GRE_ASV_cyano_order_sum2) <- GRE_ASV_count_cyano_order_sum$order
+
+GRE_ASV_cyano_order_sum2b <- GRE_ASV_cyano_order_sum2[, apply(GRE_ASV_cyano_order_sum2[1:(ncol(GRE_ASV_cyano_order_sum2))], 2, sum)!=0]
+
+GRE_ASV_cyano_order_sum2b$year <- as.numeric(colnames(GRE_ASV_count_cyano_order_sum[,2:17]))
+
+colnames(GRE_ASV_cyano_order_sum2b)
+
+#reshape for plotting
+
+GRE_ASV_cyano_order_sum3 <- melt(GRE_ASV_cyano_order_sum2b, id.vars="year", measure.vars = c("Chroococcales", 
+                                                                          "Chroococcidiopsidales", 
+                                                                          "Gloeomargaritales", 
+                                                                          "Nostocales",
+                                                                          "Oscillatoriales",
+                                                                          "Pleurocapsales",
+                                                                          "Pseudanabaenales",
+                                                                          "Synechococcales"))
+
+GRE_ASV_cyano_order_sum3$value2 <- as.numeric(GRE_ASV_cyano_order_sum3$value)
+
+
+#barplot
+
+GRE_ASV_cyano_order_sum3$year2 <- as.character(GRE_ASV_cyano_order_sum3$year)
+
+pGRE.DNA_cyano_order <-ggplot()+
+  ggtitle(expression(atop("Greifensee", "")))+
+  annotate("rect", xmin =  6.85 ,xmax = 11.15, ymin = -Inf, ymax = Inf, alpha=0.05, fill="red1")+ 
+  geom_col(data=GRE_ASV_cyano_order_sum3, aes(x = year2, y = value, fill=variable),
+           position = "stack", color= "gray40", alpha=0.8) +
+  scale_fill_manual(labels= c(Chroococcales="Chroococcales", 
+                              Chroococcidiopsidales= "Chroococcidiopsidales", 
+                              Gloeomargaritales="Gloeomargaritales", 
+                              Nostocales= "Nostocales",
+                              Oscillatoriales= "Oscillatoriales",
+                              Pleurocapsales= "Pleurocapsales",
+                              Pseudanabaenales= "Pseudanabaenales",
+                              Synechococcales= "Synechococcales"),
+                    values= c(Chroococcales="honeydew", #99FFFF
+                              Chroococcidiopsidales= "#CCFFCC", #99CCCC
+                              Gloeomargaritales="#339966", 
+                              Nostocales= "#336699",
+                              Oscillatoriales= "#cc6666",
+                              Pleurocapsales= "#cccfff",
+                              Pseudanabaenales= "#99FFFF",
+                              Synechococcales= "#003333"))+
+  scale_y_continuous(expand=c(0,0), limits=c(0,102))+
+  xlab(expression(atop("","Year CE"))) +  ylab("fractional abundance (%)")+  
+  theme(axis.line = element_line(colour = "black"), 
+        plot.title = element_text(size=35),
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=30,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=30,color="black"),
+        axis.title.x = element_text(size=30,color="black"),
+        axis.title.y = element_text(size=30,color="black"),
+        legend.key.size = unit(1, 'cm'),
+        legend.text = element_text(size=25, color="black", margin = margin(l = 20)),
+        legend.position= "right",
+        legend.key.spacing.y = unit(1, 'cm'),
+        legend.title = element_blank(),
+        legend.box.spacing = unit(1, "cm"),
+        plot.margin = unit(c(0.75,0.5,0.5,0.5), "cm"))
+
+
+#Murtensee
+
+#reframe data frames
+
+MUR_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "MUR23")
+
+MUR_ASV_count <- Swiss_Lakes_ASV_count[, MUR_ASV_count.a]
+
+MUR_ASV_count$order <- Swiss_Lakes_ASV_tax$order 
+
+MUR_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+
+#replace sample names with age
+
+colnames(MUR_ASV_count) <- c(MUR23_DNA_age2, 'order', 'phylum')
+
+MUR_ASV_count.rev <- rev(MUR_ASV_count)
+
+#extract Cyanobacteriota
+
+MUR_ASV_count_cyano <- subset(MUR_ASV_count.rev, grepl('Cyanobacteriota', phylum))
+
+MUR_ASV_count_cyano.b <- MUR_ASV_count_cyano[,2:15] #exclude phylum column
+
+MUR_ASV_count_cyano_order_sum <- aggregate(.~order,MUR_ASV_count_cyano.b,FUN=sum)
+
+
+MUR_ASV_count_cyano_order_sum2 <- as.data.frame(t(MUR_ASV_count_cyano_order_sum))
+
+MUR_ASV_count_cyano_order_sum2.1 <- as.data.frame(MUR_ASV_count_cyano_order_sum2[2:14,]) #exclude extra row
+
+MUR_ASV_count_cyano_order_sum2a <- cbind.data.frame(as.numeric(MUR_ASV_count_cyano_order_sum2.1$V1), #make values numeric after transposing function
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V2),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V3),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V4),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V5),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V6),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V7),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V8),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V9),
+                                                as.numeric(MUR_ASV_count_cyano_order_sum2.1$V10))
+
+colnames(MUR_ASV_count_cyano_order_sum2a) <- MUR_ASV_count_cyano_order_sum$order
+
+#exclude columns with only zeros
+
+MUR_ASV_count_cyano_order_sum2b <- MUR_ASV_count_cyano_order_sum2a[, apply(MUR_ASV_count_cyano_order_sum2a[1:(ncol(MUR_ASV_count_cyano_order_sum2a))], 2, sum)!=0]
+
+MUR_ASV_count_cyano_order_sum2b$year <- row.names(MUR_ASV_count_cyano_order_sum2.1)
+
+colnames(MUR_ASV_count_cyano_order_sum2b)
+
+#sum(MUR_ASV_count_cyano_order_sum2b$Nodosilineales) 
+#[1] 0.2432565
+
+#reshape for plotting
+
+MUR_ASV_count_cyano_order_sum3 <- melt(MUR_ASV_count_cyano_order_sum2b, id.vars="year", measure.vars = c("Chroococcales", 
+                                                                                             "Chroococcidiopsidales", 
+                                                                                             "Gloeomargaritales", 
+                                                                                             "Nodosilineales",
+                                                                                             "Nostocales",
+                                                                                             "Oscillatoriales",
+                                                                                             "Pleurocapsales",
+                                                                                             "Pseudanabaenales",
+                                                                                             "Synechococcales"))
+
+pMUR.DNA_cyano_order <-ggplot()+
+  ggtitle(expression(atop("Murtensee", "")))+
+  annotate("rect", xmin =  6.85 ,xmax = 11.15, ymin = -Inf, ymax = Inf, alpha=0.05, fill="red1")+ 
+  geom_col(data=MUR_ASV_count_cyano_order_sum3, aes(x = year, y = value, fill=variable),
+           position = "stack", color= "gray40", alpha=0.8) +
+  scale_fill_manual(labels= c(Chroococcales="Chroococcales", 
+                              Chroococcidiopsidales= "Chroococcidiopsidales", 
+                              Gloeomargaritales="Gloeomargaritales", 
+                              Nodosilineales= "Nodosilineales",
+                              Nostocales= "Nostocales",
+                              Oscillatoriales= "Oscillatoriales",
+                              Pleurocapsales= "Pleurocapsales",
+                              Pseudanabaenales= "Pseudanabaenales",
+                              Synechococcales= "Synechococcales"),
+                    values= c(Chroococcales="honeydew", #99FFFF
+                              Chroococcidiopsidales= "#CCFFCC", #99CCCC
+                              Gloeomargaritales="#339966", 
+                              Nodosilineales= "lightskyblue",
+                              Nostocales= "#336699",
+                              Oscillatoriales= "#cc6666",
+                              Pleurocapsales= "#cccfff",
+                              Pseudanabaenales= "#99FFFF",
+                              Synechococcales= "#003333"))+
+  scale_y_continuous(expand=c(0,0), limits=c(0,102))+
+  xlab(expression(atop("","Year CE"))) +  ylab("fractional abundance (%)")+  
+  theme(axis.line = element_line(colour = "black"), 
+        plot.title = element_text(size=35),
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=30,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=30,color="black"),
+        axis.title.x = element_text(size=30,color="black"),
+        axis.title.y = element_text(size=30,color="black"),
+        legend.key.size = unit(1, 'cm'),
+        legend.text = element_text(size=25, color="black", margin = margin(l = 20)),
+        legend.position= "right",
+        legend.key.spacing.y = unit(1, 'cm'),
+        legend.title = element_blank(),
+        legend.box.spacing = unit(1, "cm"),
+        plot.margin = unit(c(0.75,0.5,0.5,0.5), "cm"))
+
+
+#Zugersee
+
+#northern basin
+
+ZUG.N_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24N02")
+
+ZUG.N_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.N_ASV_count.a]
+
+#re-order samples 
+
+ZUG.N_ASV_count_ord <- ZUG.N_ASV_count[,c(1,11,14, 2,3,4,5,6,7,8,9,10,12, 13)]
+
+ZUG.N_ASV_count_ord$order <- Swiss_Lakes_ASV_tax$order
+
+ZUG.N_ASV_count_ord$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+
+#replace sample names with age
+
+colnames(ZUG.N_ASV_count_ord) <- c(ZUG.N_DNA_age3, 'order', 'phylum')
+
+ZUG.N_ASV_count.rev <- rev(ZUG.N_ASV_count_ord)
+
+#extract Cyanobacteriota
+
+ZUG.N_ASV_count_cyano <- subset(ZUG.N_ASV_count.rev, grepl('Cyanobacteriota', phylum))
+
+ZUG.N_ASV_count_cyano.b <- ZUG.N_ASV_count_cyano[,2:16] #exclude phylum column
+
+ZUG.N_ASV_count_cyano_order_sum <- aggregate(.~order,ZUG.N_ASV_count_cyano.b,FUN=sum) #aggregate by order
+
+
+ZUG.N_ASV_count_cyano_order_sum2 <- as.data.frame(t(ZUG.N_ASV_count_cyano_order_sum))
+
+ZUG.N_ASV_count_cyano_order_sum2.1 <- as.data.frame(ZUG.N_ASV_count_cyano_order_sum2[2:15,]) #exclude extra row
+
+ZUG.N_ASV_count_cyano_order_sum2a <- cbind.data.frame(as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V1), #make values numeric after transposing function
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V2),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V3),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V4),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V5),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V6),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V7),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V8),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V9),
+                                                    as.numeric(ZUG.N_ASV_count_cyano_order_sum2.1$V10))
+
+colnames(ZUG.N_ASV_count_cyano_order_sum2a) <- ZUG.N_ASV_count_cyano_order_sum$order
+
+#exclude columns with only zeros
+
+ZUG.N_ASV_count_cyano_order_sum2b <- ZUG.N_ASV_count_cyano_order_sum2a[, apply(ZUG.N_ASV_count_cyano_order_sum2a[1:(ncol(ZUG.N_ASV_count_cyano_order_sum2a))], 2, sum)!=0]
+
+ZUG.N_ASV_count_cyano_order_sum2b$year <- row.names(ZUG.N_ASV_count_cyano_order_sum2.1)
+
+colnames(ZUG.N_ASV_count_cyano_order_sum2b)
+
+#Spirulinales only 0.01291877 % (all samples together)! --> #exclude from plotting so one can combine legends from Zugersee
+
+#reshape for plotting
+
+ZUG.N_ASV_count_cyano_order_sum3 <- melt(ZUG.N_ASV_count_cyano_order_sum2b, id.vars="year", measure.vars = c("Chroococcales", 
+                                                                                                         "Chroococcidiopsidales", 
+                                                                                                         "Gloeomargaritales", 
+                                                                                                         "Nodosilineales",
+                                                                                                         "Nostocales",
+                                                                                                         "Oscillatoriales",
+                                                                                                         "Pleurocapsales",
+                                                                                                         "Pseudanabaenales",
+                                                                                                         "Synechococcales"))
+
+pZUGN.DNA_cyano_order <-ggplot()+
+  ggtitle(expression(atop("Zugersee North Basin", "")))+
+  annotate("rect", xmin =  8.85 ,xmax = 12.15, ymin = -Inf, ymax = Inf, alpha=0.05, fill="red1")+ 
+  geom_col(data=ZUG.N_ASV_count_cyano_order_sum3, aes(x = year, y = value, fill=variable),
+           position = "stack", color= "gray40", alpha=0.8) +
+  scale_fill_manual(labels= c(Chroococcales="Chroococcales", 
+                              Chroococcidiopsidales= "Chroococcidiopsidales", 
+                              Gloeomargaritales="Gloeomargaritales", 
+                              Nodosilineales= "Nodosilineales",
+                              Nostocales= "Nostocales",
+                              Oscillatoriales= "Oscillatoriales",
+                              Pleurocapsales= "Pleurocapsales",
+                              Pseudanabaenales= "Pseudanabaenales",
+                              Synechococcales= "Synechococcales"),
+                    values= c(Chroococcales="honeydew", #99FFFF
+                              Chroococcidiopsidales= "#CCFFCC", #99CCCC
+                              Gloeomargaritales="#339966", 
+                              Nodosilineales= "lightskyblue",
+                              Nostocales= "#336699",
+                              Oscillatoriales= "#cc6666",
+                              Pleurocapsales= "#cccfff",
+                              Pseudanabaenales= "#99FFFF",
+                              Synechococcales= "#003333"))+
+  scale_y_continuous(expand=c(0,0), limits=c(0,102))+
+  xlab(expression(atop("","Year CE"))) +  ylab("fractional abundance (%)")+  
+  theme(axis.line = element_line(colour = "black"), 
+        plot.title = element_text(size=35),
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=30,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=30,color="black"),
+        axis.title.x = element_text(size=30,color="black"),
+        axis.title.y = element_text(size=30,color="black"),
+        legend.key.size = unit(1, 'cm'),
+        legend.text = element_text(size=25, color="black", margin = margin(l = 20)),
+        legend.position= "right",
+        legend.key.spacing.y = unit(1, 'cm'),
+        legend.title = element_blank(),
+        legend.box.spacing = unit(1.5, "cm"),
+        plot.margin = unit(c(0.75,0.5,0.5,0.5), "cm"))
+
+
+#southern basin
+
+ZUG.S_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24S03")
+
+ZUG.S_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.S_ASV_count.a]
+
+#re-order samples 
+
+ZUG.S_ASV_count_ord <- ZUG.S_ASV_count[,c(1,12,14, 2,3,4,5,6,7,8,9,10,11, 13)]
+
+ZUG.S_ASV_count_ord$order <- Swiss_Lakes_ASV_tax$order
+
+ZUG.S_ASV_count_ord$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+
+#replace sample names with age
+
+colnames(ZUG.S_ASV_count_ord) <- c(ZUG.S_DNA_age3, 'order', 'phylum')
+
+ZUG.S_ASV_count.rev <- rev(ZUG.S_ASV_count_ord)
+
+#extract Cyanobacteriota
+
+ZUG.S_ASV_count_cyano <- subset(ZUG.S_ASV_count.rev, grepl('Cyanobacteriota', phylum))
+
+ZUG.S_ASV_count_cyano.b <- ZUG.S_ASV_count_cyano[,2:16] #exclude phylum column
+
+ZUG.S_ASV_count_cyano_order_sum <- aggregate(.~order,ZUG.S_ASV_count_cyano.b,FUN=sum) #aggregate by order
+
+
+ZUG.S_ASV_count_cyano_order_sum2 <- as.data.frame(t(ZUG.S_ASV_count_cyano_order_sum))
+
+ZUG.S_ASV_count_cyano_order_sum2.1 <- as.data.frame(ZUG.S_ASV_count_cyano_order_sum2[2:15,]) #exclude extra row
+
+ZUG.S_ASV_count_cyano_order_sum2a <- cbind.data.frame(as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V1), #make values numeric after transposing function
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V2),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V3),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V4),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V5),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V6),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V7),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V8),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V9),
+                                                      as.numeric(ZUG.S_ASV_count_cyano_order_sum2.1$V10))
+
+colnames(ZUG.S_ASV_count_cyano_order_sum2a) <- ZUG.S_ASV_count_cyano_order_sum$order
+
+#exclude columns with only zeros
+
+ZUG.S_ASV_count_cyano_order_sum2b <- ZUG.S_ASV_count_cyano_order_sum2a[, apply(ZUG.S_ASV_count_cyano_order_sum2a[1:(ncol(ZUG.S_ASV_count_cyano_order_sum2a))], 2, sum)!=0]
+
+ZUG.S_ASV_count_cyano_order_sum2b$year <- row.names(ZUG.S_ASV_count_cyano_order_sum2.1)
+
+colnames(ZUG.S_ASV_count_cyano_order_sum2b)
+
+#reshape for plotting
+
+ZUG.S_ASV_count_cyano_order_sum3 <- melt(ZUG.S_ASV_count_cyano_order_sum2b, id.vars="year", measure.vars = c("Chroococcales", 
+                                                                                                             "Chroococcidiopsidales", 
+                                                                                                             "Gloeomargaritales", 
+                                                                                                             "Nodosilineales",
+                                                                                                             "Nostocales",
+                                                                                                             "Oscillatoriales",
+                                                                                                             "Pleurocapsales",
+                                                                                                             "Pseudanabaenales",
+                                                                                                             "Synechococcales"))
+
+pZUGS.DNA_cyano_order <-ggplot()+
+  ggtitle(expression(atop("Zugersee South Basin", "")))+
+  annotate("rect", xmin =  4.85 ,xmax = 10.15, ymin = -Inf, ymax = Inf, alpha=0.05, fill="red1")+ 
+  geom_col(data=ZUG.S_ASV_count_cyano_order_sum3, aes(x = year, y = value, fill=variable),
+           position = "stack", color= "gray40", alpha=0.8) +
+  scale_fill_manual(labels= c(Chroococcales="Chroococcales", 
+                              Chroococcidiopsidales= "Chroococcidiopsidales", 
+                              Gloeomargaritales="Gloeomargaritales", 
+                              Nodosilineales= "Nodosilineales",
+                              Nostocales= "Nostocales",
+                              Oscillatoriales= "Oscillatoriales",
+                              Pleurocapsales= "Pleurocapsales",
+                              Pseudanabaenales= "Pseudanabaenales",
+                              Synechococcales= "Synechococcales"),
+                    values= c(Chroococcales="honeydew", #99FFFF
+                              Chroococcidiopsidales= "#CCFFCC", #99CCCC
+                              Gloeomargaritales="#339966", 
+                              Nodosilineales= "lightskyblue",
+                              Nostocales= "#336699",
+                              Oscillatoriales= "#cc6666",
+                              Pleurocapsales= "#cccfff",
+                              Pseudanabaenales= "#99FFFF",
+                              Synechococcales= "#003333"))+
+  scale_y_continuous(expand=c(0,0), limits=c(0,102))+
+  xlab(expression(atop("","Year CE"))) +  ylab("fractional abundance (%)")+  
+  theme(axis.line = element_line(colour = "black"),
+        plot.title = element_text(size=35),
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=30,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=30,color="black"),
+        axis.title.x = element_text(size=30,color="black"),
+        axis.title.y = element_text(size=30,color="black"),
+        legend.key.size = unit(1, 'cm'),
+        legend.text = element_text(size=25, color="black", margin = margin(l = 20)),
+        legend.position= "right",
+        legend.key.spacing.y = unit(1, 'cm'),
+        legend.title = element_blank(),
+        legend.box.spacing = unit(1.5, "cm"),
+        plot.margin = unit(c(0.75,0.5,0.5,0.5), "cm"))
+
+
+pCyano1 <- pGRE.DNA_cyano_order+ pMUR.DNA_cyano_order+ plot_layout(ncol=1)
+
+pCyano2 <- pZUGN.DNA_cyano_order+ pZUGS.DNA_cyano_order+ plot_layout(ncol=1,guides = 'collect')
+
+FigS6 <- plot_grid(pCyano1, pCyano2, ncol=1, align= 'v', axis= 'rl', rel_heights = c(1,0.975))
+
+```
+
+## Fig. S6
+
+```{r, fig.width = 17.5, fig.height = 32.5, echo=FALSE}
+
+plot(FigS6)
+
+```
