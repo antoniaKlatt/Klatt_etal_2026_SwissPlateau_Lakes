@@ -1,0 +1,47 @@
+---
+title: "Swiss Plateau lakes rplum"
+author: "Antonia Klatt"
+date: "2026-05-29"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(rplum)
+library(readr)
+Sys.setlocale("LC_ALL", "English")
+
+rm(list=ls())
+
+setwd(here("01_Data","rplum"))
+coredir <- "01_Data\\rplum\\Plum_runs"
+
+#Al: did not find minimum error specific for the WELL™ Germanium Well Detector (Mirion Technologies); set default Al instead
+#Include radium measurements ra.case=1
+
+#Murtensee
+
+
+Plum(core="MUR23_D1", otherdates= "MUR23_D1_137Cs.csv",  d.min=0, d.max= 90, 
+     BCAD=TRUE, date.sample=2023.3, n.supp=3, remove.tail= FALSE, ra.case=1)
+
+
+#Zugersee Northern Basin
+
+
+Plum(core="ZUG24_N2", otherdates= "ZUG24_N_137Cs.csv",  d.max= 50, BCAD=TRUE, date.sample=2024.75, 
+     n.supp=3, ra.case=1, remove.tail= FALSE) 
+
+
+#Zugersee Sourthern Basin
+
+#plum run excluding turbidite layers
+
+Plum(core="ZUG24_S3", otherdates= "ZUG24_S3_137Cs.csv",  d.max= 45, BCAD=TRUE, date.sample=2024.75, n.supp=3, 
+     ra.case=1, remove.tail= FALSE) 
+
+
+
