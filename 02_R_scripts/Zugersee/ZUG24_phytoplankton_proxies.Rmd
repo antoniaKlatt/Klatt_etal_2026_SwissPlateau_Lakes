@@ -1,0 +1,559 @@
+---
+title: "ZUG24 phytoplankton proxies (lipid-based and sedDNA)"
+author: "Antonia Klatt"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(caret)
+library(gam)
+library(vegan)
+library(dplyr)
+library(rioja)
+library(ggdendro)
+library(stringr)
+library(tidyr)
+
+#Note: for Zugersee, two separate core from the northern (ZUG_N) and the southern basin (ZUG_S) were analyzed in this study
+
+#no d2H Lipid data are available due to a UCM hump co-eluting with phytol on the GC-IRMS
+
+#Import data 
+
+#age-depth model
+
+ZUG24_N_rplum <- read.csv (here("01_Data","Zugersee", "ZUG24_N_51_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select every second row rplum file --> specific subsampling depths 
+
+ZUG24_N_age_depth <- rbind.data.frame((ZUG24_N_rplum[3:42,] %>% filter(row_number() %% 3 == 1)), (ZUG24_N_rplum[49:49,]))
+
+ZUG24_S_rplum <- read.csv (here("01_Data","Zugersee", "ZUG24_S_46_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#for age model, sandy layers were excluded beforehand --> better fit with caesium peaks
+
+#select specific subsampling depths of lipids
+
+ZUG24_S_age_depth2 <- rbind.data.frame((ZUG24_S_rplum[3:42,] %>% filter(row_number() %% 3 == 1)))
+
+
+#Lipid data
+
+##Phytol:sterol index (PSI)
+
+ZUG24N_phytol.sterol.ratio <- read.csv(here("01_Data","Zugersee", "ZUG24_N_phytol.sterol.ratio.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+ZUG24N_phytol.sterol.ratio$year <- ZUG24_N_age_depth$mean
+
+
+ZUG24S_phytol.sterol.ratio.a <- read.csv(here("01_Data","Zugersee", "ZUG24_S_phytol.sterol.ratio.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+ZUG24S_phytol.sterol.ratio.a$year <- ZUG24_S_age_depth2$mean
+
+
+##absolute alcohol concentrations (ug/g TOC)
+
+ZUG24_N_alcohols_ugTOC.a <- read.csv(here("01_Data","Zugersee", "ZUG24_N_F3_ug_gTOC.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+ZUG24_N_alcohols_ugTOC <- ZUG24_N_alcohols_ugTOC.a[1:15,] #remove extra rows
+
+ZUG24_N_alcohols_ugTOC$age_CE <- ZUG24_N_age_depth$mean
+
+ZUG24_S_alcohols_ugTOC <- read.csv(here("01_Data","Zugersee", "ZUG24_S_F3_ug_gTOC.csv"), header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+ZUG24_S_alcohols_ugTOC$age_CE <- ZUG24_S_age_depth2$mean
+
+
+##relative alcohol concentrations (%)
+
+ZUG24_N_alcohols_rel_conc.a <- read.csv(here("01_Data","Zugersee", "ZUG24_N_F3_relConc_woAlkanols.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#remove random NA columns from import and year
+
+ZUG24_N_alcohols_rel_conc <- ZUG24_N_alcohols_rel_conc.a[,1:25]
+
+row.names(ZUG24_N_alcohols_rel_conc) <- ZUG24_N_age_depth$mean
+
+
+ZUG24_S_alcohols_rel_conc <- read.csv(here("01_Data","Zugersee", "ZUG24_S_F3_relConc_woAlkanols.csv"), row.names=1, header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+row.names(ZUG24_S_alcohols_rel_conc) <- ZUG24_S_age_depth2$mean
+
+
+#23S rRNA amplicon sequenceing variants (ASV) data (sedDNA)
+
+#ASV count data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+
+#ASV taxonomy data (NCBI)
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+
+#extract data for Zugersee
+
+#Zugersee Northern Basin
+
+ZUG.N_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24N02")
+
+ZUG.N_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.N_ASV_count.a]
+
+ZUG.N_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+#re-order samples 
+
+ZUG.N_ASV_count_ord <- ZUG.N_ASV_count[,c(1,11,14, 2,3,4,5,6,7,8,9,10,12, 13, 15)]
+
+
+#Zugersee Southern Basin
+
+ZUG.S_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24S03")
+
+ZUG.S_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.S_ASV_count.a]
+
+ZUG.S_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
+
+#re-order samples 
+
+ZUG.S_ASV_count_ord <- ZUG.S_ASV_count[,c(1,12,14, 2,3,4,5,6,7,8,9,10,11, 13, 15)]
+
+```
+
+## Stratigraphically constrained clustering (CONISS) of relative alcohol concentrations
+
+```{r}
+
+#Northern basin 
+
+#create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+ZUG24_N_alc_dist <- vegdist(ZUG24_N_alcohols_rel_conc, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+ZUG24_N_alc_CONISS <-chclust(ZUG24_N_alc_dist, method = "coniss")
+
+
+plot(ZUG24_N_alc_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS ZUG24_N Alcohols")
+
+bstick(ZUG24_N_alc_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS ZUG24_N alcohols") #2 clusters significant
+
+
+#extract cluster number from chclust
+
+ZUG24_N_alc_groups<-cutree(ZUG24_N_alc_CONISS, k=2) #k=2 since we have 2 significant clusters according to bstick
+
+ZUG24_N_alc_clust_Age <-cbind.data.frame(ZUG24_N_age_depth$mean, ZUG24_N_alc_groups)
+
+colnames(ZUG24_N_alc_clust_Age) <- c("Year", "ZUG24_N_CONISS_cluster")
+
+
+#group1 :2014.1 - 1946.2
+#group2: 1931.1 - 1789.1 
+
+#draw lines between edge values from zones in ggplot, e.g. (younger value group2 - ((younger group2-older value group1)/2)
+#--> 1938.65
+
+
+#extract dendrogram
+
+ZUG24_N_alc_dendro <- as.dendrogram(ZUG24_N_alc_CONISS)
+
+ZUG24_N_dend_data <- dendro_data(ZUG24_N_alc_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+
+#Code adapted from https://stackoverflow.com/questions/65207033/how-do-i-plot-dendrogram-leaves-by-a-given-value-depth-in-a-sediment-core-rath (accessed 22.07.2025)
+
+dendAge <- approxfun(ZUG24_N_dend_data$labels$x, as.numeric(as.character(ZUG24_N_dend_data$labels$label))) 
+ZUG24_N_dend_data$segments$x <- dendAge(ZUG24_N_dend_data$segments$x)
+ZUG24_N_dend_data$segments$xend <- dendAge(ZUG24_N_dend_data$segments$xend)
+
+
+pdend.ZUGN <- ggplot(segment(ZUG24_N_dend_data)) +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  ggtitle(expression('CONISS'['Alcohols']~'North Basin'), subtitle="CONISS")+
+  geom_vline(xintercept=1938.65, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_x_continuous(limits= c(1789,2015), expand=c(0,0))+
+  scale_y_continuous()+
+  theme_dendro()+
+  theme( plot.title = element_text(size=37.5, hjust=0.5),
+         plot.subtitle = element_blank(),
+         plot.margin = unit(c(0.5,0.5,0,0.5), "cm"))
+
+
+#Southern basin
+
+#create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+ZUG24_S_alc_dist <- vegdist(ZUG24_S_alcohols_rel_conc, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+ZUG24_S_alc_CONISS <-chclust(ZUG24_S_alc_dist, method = "coniss")
+
+
+plot(ZUG24_S_alc_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS ZUG24_S Alcohols")
+
+bstick(ZUG24_S_alc_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS ZUG24_S alcohols") #3 clusters significant
+
+
+#extract cluster number from chclust
+
+ZUG24_S_alc_groups<-cutree(ZUG24_S_alc_CONISS, k=3) #k=3 since we have 2 significant clusters according to bstick
+
+ZUG24_S_alc_clust_Age <-cbind.data.frame(ZUG24_S_age_depth2$mean, ZUG24_S_alc_groups)
+
+colnames(ZUG24_S_alc_clust_Age) <- c("Year", "ZUG24_S_CONISS_cluster")
+
+
+#group1 : 2019.4 - 1976.9 
+#group2: 1969.3 - 1949.8 
+#group3: 1943.6 - 1925.3
+
+#draw lines between edge values from zones in ggplot, e.g. (younger value group2 - ((younger group2-older value group1)/2)
+#--> 1973.1
+#--> 1946.7
+
+#extract dendrogram
+
+ZUG24_S_alc_dendro <- as.dendrogram(ZUG24_S_alc_CONISS)
+
+ZUG24_S_dend_data <- dendro_data(ZUG24_S_alc_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+
+#Code adapted from https://stackoverflow.com/questions/65207033/how-do-i-plot-dendrogram-leaves-by-a-given-value-depth-in-a-sediment-core-rath (accessed 22.07.2025)
+
+dendAge <- approxfun(ZUG24_S_dend_data$labels$x, as.numeric(as.character(ZUG24_S_dend_data$labels$label))) 
+ZUG24_S_dend_data$segments$x <- dendAge(ZUG24_S_dend_data$segments$x)
+ZUG24_S_dend_data$segments$xend <- dendAge(ZUG24_S_dend_data$segments$xend)
+
+pdend.ZUGS <- ggplot(segment(ZUG24_S_dend_data)) +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  ggtitle(expression('CONISS'['Alcohols']~'South Basin'), subtitle="CONISS")+
+  geom_vline(xintercept=1973.1, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_vline(xintercept=1946.7, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_x_continuous(limits= c(1800,2020), expand=c(0,0))+
+  scale_y_continuous()+
+  theme_dendro()+
+  theme( plot.title = element_text(size=37.5, hjust=0.95),
+         plot.subtitle = element_blank(),
+         plot.margin = unit(c(0.5,0.5,0,0.5), "cm"))
+
+
+```
+
+## create plot with CONISS cluster dendrogram of alcohol concentrations, PSI values, relative abundance of Cyanobacteriota (23S rRNA ASVs) and dinostanol plus dinosterol
+
+```{r}
+
+#PSI
+
+#combine PSI from both basins in one dataframe for plotting turbidite layers in southern basin core
+
+ZUG24NS_phytol.sterol.ratio.a <- rbind.data.frame(ZUG24N_phytol.sterol.ratio, ZUG24S_phytol.sterol.ratio.a)
+
+ZUG24NS_phytol.sterol.ratio.a$group <- c(rep("N",15), rep("S", 14))
+
+#extract turbidite layers
+
+ZUG24S_phytol.sterol.ratio.sandy <- ZUG24S_phytol.sterol.ratio.a %>% slice(c(2,5,7,10,11,12,13,14))
+
+
+#Northern basin
+
+ZUG24N_PhySter <- ggplot() +
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_line(data = ZUG24NS_phytol.sterol.ratio.a[1:15,] , aes(x = year, y = phytol.sterol.ratio), color= "darkslategray", linewidth=1.5) +
+  #geom_vline(xintercept=1938.65, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  scale_x_continuous(limits= c(1789,2015), expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,0.8))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab("Year CE") + ylab(expression(atop("phytol:sterol index")))+ 
+  theme(axis.line = element_line(colour = "black"), 
+        axis.line.x = element_blank(),
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x= element_blank(),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.position='none',
+        plot.margin = unit(c(0,0.5,0.25,0.5), "cm"))
+
+
+#Southern basin
+
+ZUG24S_PhySter <- ggplot() +
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_line(data = ZUG24NS_phytol.sterol.ratio.a[16:29,] , aes(x = year, y = phytol.sterol.ratio), color= "darkslategray", linewidth=1.5) +
+  geom_point(data = ZUG24S_phytol.sterol.ratio.sandy , aes(x = year, y = phytol.sterol.ratio), color= "tan1", shape=8, 
+             stroke=1.5, size=8.5, alpha=1) +
+  #geom_vline(xintercept=1973.1, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  #geom_vline(xintercept=1946.7, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  scale_x_continuous(limits= c(1800,2020), expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,0.8))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab("Year CE") + ylab(expression(atop("phytol:sterol index")))+ 
+  theme(axis.line = element_line(colour = "black"),
+        axis.line.x = element_blank(),
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x= element_blank(),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.position='none',
+        plot.margin = unit(c(0,0.5,0.25,0.5), "cm"))
+
+
+
+#relative abundance Cyanobacteriota (23S rRNA ASVs)
+
+#Northern basin
+
+#sum rows with same phylum  
+
+ZUG.N_ASV_count_phylum <- aggregate(.~phylum,ZUG.N_ASV_count_ord,FUN=sum)
+
+#replace colnames with age
+
+colnames(ZUG.N_ASV_count_phylum)
+
+#select specific subsampling depths of DNA (same as lipids)
+
+ZUG.N_DNA_age <- filter(ZUG24_N_rplum,  depth %in% c(2,5,8,11,14,17,20,23,26,32,35,38,41,48))
+
+#round to full numbers 
+
+ZUG.N_DNA_age2 <- round(ZUG.N_DNA_age$mean, digits=0)
+
+ZUG.N_DNA_age3 <- as.character(ZUG.N_DNA_age2)
+
+#replace sample names with age
+
+colnames(ZUG.N_ASV_count_phylum) <- c("phylum", ZUG.N_DNA_age3)
+
+ZUG.N_ASV_count_phylum.rev <- rev(ZUG.N_ASV_count_phylum)
+
+
+#extract Cyanobacteriota
+
+ZUG.N_ASV_count_cyano <- subset(ZUG.N_ASV_count_phylum.rev, grepl('Cyanobacteriota', phylum))
+
+ZUG.N_ASV_count_cyano2 <- as.data.frame(t(ZUG.N_ASV_count_cyano[,1:14]))
+
+ZUG.N_ASV_count_cyano_age_CE <- as.numeric(rownames(ZUG.N_ASV_count_cyano2))
+
+ZUG.N_ASV_count_cyano_rel <- as.numeric(ZUG.N_ASV_count_cyano2[,1:1])
+
+ZUG.N_ASV_count_cyano3 <- cbind.data.frame(ZUG.N_ASV_count_cyano_age_CE, ZUG.N_ASV_count_cyano_rel)
+
+colnames(ZUG.N_ASV_count_cyano3) <- c( "age_CE", "Cyanobacteriota")
+
+
+#remove oldest sample, since it is not relevant for comparison with lipid proxies
+
+pZUG.N_DNA_Cyano <- ggplot() +
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data = ZUG.N_ASV_count_cyano3 , aes(x = age_CE, y =Cyanobacteriota), fill="darkslategray", alpha=0.75)+
+  #reverse depth so it starts at zero
+  #put the y axis labes on the opposite side so when its flipped it will appear at top
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010), expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,105), breaks=c(25,50,75,100), expand= c(0,0))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab(expression(atop("","Year CE"))) + ylab(expression(atop("% Cyanobacteriota")))+ 
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "none",
+        plot.margin = unit(c(0.25,0.5,0.5,0.5), "cm"))
+
+
+#Southern basin 
+
+ZUG.S_ASV_count_phylum <- aggregate(.~phylum,ZUG.S_ASV_count_ord,FUN=sum)
+
+#replace colnames with age
+
+colnames(ZUG.S_ASV_count_phylum)
+
+ZUG.S_DNA_age <- filter(ZUG24_S_rplum, depth %in% c(2,5,8,11,14,17,20,23,26,29,32,35,38,41))
+
+#round to full numbers 
+
+ZUG.S_DNA_age2 <- round(ZUG.S_DNA_age$mean, digits=0)
+
+ZUG.S_DNA_age3 <- as.character(ZUG.S_DNA_age2)
+
+#replace sample names with age
+
+colnames(ZUG.S_ASV_count_phylum) <- c("phylum", ZUG.S_DNA_age3)
+
+ZUG.S_ASV_count_phylum.rev <- rev(ZUG.S_ASV_count_phylum)
+
+
+#extract Cyanobacteriota
+
+ZUG.S_ASV_count_cyano <- subset(ZUG.S_ASV_count_phylum.rev, grepl('Cyanobacteriota', phylum))
+
+ZUG.S_ASV_count_cyano2 <- as.data.frame(t(ZUG.S_ASV_count_cyano[,1:14]))
+
+ZUG.S_ASV_count_cyano_age_CE <- as.numeric(rownames(ZUG.S_ASV_count_cyano2))
+
+ZUG.S_ASV_count_cyano_rel <- as.numeric(ZUG.S_ASV_count_cyano2[,1:1])
+
+ZUG.S_ASV_count_cyano3 <- cbind.data.frame(ZUG.S_ASV_count_cyano_age_CE, ZUG.S_ASV_count_cyano_rel)
+
+colnames(ZUG.S_ASV_count_cyano3) <- c( "age_CE", "Cyanobacteriota")
+
+#remove oldest sample, since it is not relevant for comparison with lipid proxies
+
+pZUG.S_DNA_Cyano <- ggplot() +
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data = ZUG.S_ASV_count_cyano3 , aes(x = age_CE, y =Cyanobacteriota), fill="darkslategray", alpha=0.75)+
+  #reverse depth so it starts at zero
+  #put the y axis labes on the opposite side so when its flipped it will appear at top
+  scale_x_continuous(limits= c(1800,2020), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010), expand= c(0,0))+
+  scale_y_continuous(position="left", limits=c(0,105), breaks=c(25,50,75,100), expand= c(0,0))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab(expression(atop("","Year CE"))) + ylab(expression(atop("% Cyanobacteriota")))+ 
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "none",
+        plot.margin = unit(c(0.25,0.5,0.5,0.5), "cm"))
+
+
+#dinostanol & dinosterol
+
+#Northern basin 
+
+ZUGN_dino <- ggplot() +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  #geom_ribbon(data=GRE_dino_smooth_wAge, aes(x= year, ymax = upper, ymin = lower), fill = "plum1", alpha = 0.25) + 
+  geom_line(data = ZUG24_N_alcohols_ugTOC, 
+            aes(x = age_CE, y =  Dinostanol.plus.isomer.ug.gTOC), color= '#cccfff', linewidth=1.5) +
+  geom_line(data = ZUG24_N_alcohols_ugTOC, 
+            aes(x = age_CE, y =  Dinosterol.ug.gTOC), color= '#660066', linewidth=1.5) +
+  geom_vline(xintercept=1938.65, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010), expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(-10,410),expand= c(0,0))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab(expression(atop("","Year CE"))) + ylab(expression(atop(mu*g~'/g'['TOC'])))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "bottom",
+        plot.margin = unit(c(0,0.65,0.5,0.5), "cm"))
+
+
+#Southern basin
+
+ZUGS_dino <- ggplot() +
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  #geom_ribbon(data=GRE_dino_smooth_wAge, aes(x= year, ymax = upper, ymin = lower), fill = "plum1", alpha = 0.25) + 
+  geom_line(data = ZUG24_S_alcohols_ugTOC, 
+            aes(x = age_CE, y =  Dinostanol.plus.isomer.ug.gTOC), color= '#ccccff', linewidth=1.5) +
+  geom_line(data = ZUG24_S_alcohols_ugTOC, 
+            aes(x = age_CE, y =  Dinosterol.ug.gTOC), color= '#660066', linewidth=1.5) +
+  geom_vline(xintercept=1973.1, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+
+  geom_vline(xintercept=1946.7, color = "lightsteelblue4", linetype="dashed", linewidth=0.75)+  
+  scale_x_continuous(limits= c(1800,2020), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010), expand=c(0,0))+
+  scale_y_continuous(position="left", limits=c(-10,410),expand= c(0,0))+
+  #, limits=c(-0.15,1.15), breaks = seq(0, 1, by = 1))+
+  #this is how you reverse the look and order or the coordinates for the graph
+  xlab(expression(atop("","Year CE"))) +ylab(expression(atop(mu*g~'/g'['TOC'])))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        axis.text.x = element_text(size=37.5,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=37.5,color="black"),
+        axis.title.x = element_text(size=37.5,color="black"),
+        axis.title.y = element_text(size=37.5,color="black"),
+        legend.text=element_text(size=37.5, margin=margin(l=20)),
+        legend.title=element_text(size=37.5, margin=margin(b=20)),
+        legend.key=element_blank(),
+        legend.key.spacing.x = unit(1, 'cm'),
+        legend.position = "bottom",
+        plot.margin = unit(c(0,0.65,0.5,0.5), "cm"))
+
+
+#plotting separate in 2 columns
+
+pZUG.N_phyto <- plot_grid(pdend.ZUGN, ZUG24N_PhySter, pZUG.N_DNA_Cyano, pdend.ZUGN, ZUGN_dino,
+                          nrow=5,rel_heights= c(0.5, 1.05, 1.425,0.5,1.405), 
+                          axis= "rl", align = "v")
+
+
+pZUG.S_phyto <- plot_grid(pdend.ZUGS, ZUG24S_PhySter, pZUG.S_DNA_Cyano, pdend.ZUGS, ZUGS_dino,
+                          nrow=5,rel_heights= c(0.5, 1.05, 1.425,0.5,1.405), 
+                          axis= "rl", align = "v")
+
+Fig6ab <- plot_grid(pZUG.N_phyto, pZUG.S_phyto, ncol=2, rel_heights= c(1,1), axis= "tb", align = "h")
+
+```
+
+# Fig. 6ab
+
+```{r, fig.width = 28.75, fig.height = 27.5, echo=FALSE}
+
+plot(Fig6ab)
+
+```
+
+

@@ -1,0 +1,295 @@
+---
+title: "ZUG24 NMDS basin comparison"
+author: "Antonia Klatt"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(caret)
+library(gam)
+library(vegan)
+library(dplyr)
+library(rioja)
+library(ggdendro)
+library(stringr)
+library(tidyr)
+
+#Note: for Zugersee, two separate core from the northern (ZUG_N) and the southern basin (ZUG_S) were analyzed in this study
+
+
+#Import data
+
+##age-depth model
+
+ZUG24_N_rplum <- read.csv (here("01_Data","Zugersee", "ZUG24_N_51_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select every second row rplum file --> specific subsampling depths 
+
+ZUG24_N_age_depth <- rbind.data.frame((ZUG24_N_rplum[3:42,] %>% filter(row_number() %% 3 == 1)), (ZUG24_N_rplum[49:49,]))
+
+
+ZUG24_S_rplum <- read.csv (here("01_Data","Zugersee", "ZUG24_S_46_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#for age model, sandy layers were excluded beforehand --> better fit with caesium peaks
+
+ZUG24_S_age_depth2 <- rbind.data.frame((ZUG24_S_rplum[3:42,] %>% filter(row_number() %% 3 == 1)))
+
+
+##Lipid data
+
+ZUG24_NS_alcohols_rel_conc <- read.csv(here("01_Data","Zugersee", "ZUG24_N_S_Alcohols_relConc_woAlkanols.csv"), row.names=1, header = TRUE , sep = ";" , stringsAsFactors = FALSE, na.strings = "#NV")
+
+
+##23S rRNA amplicon sequenceing variants (ASV) data (sedDNA)
+
+
+#ASV count data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+
+#ASV taxonomy data (NCBI)
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+
+#extract data for Zugersee
+
+#Northern Basin
+
+ZUG.N_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24N02")
+
+ZUG.N_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.N_ASV_count.a]
+
+ZUG.N_ASV_count$class <- Swiss_Lakes_ASV_tax$class
+
+
+#re-order samples 
+
+ZUG.N_ASV_count_ord <- ZUG.N_ASV_count[,c(1,11,14, 2,3,4,5,6,7,8,9,10,12, 13, 15)]
+
+#sum rows with same taxonomic class 
+
+ZUG.N_ASV_count_class <- aggregate(.~class,ZUG.N_ASV_count_ord,FUN=sum)
+
+#replace colnames with age
+
+colnames(ZUG.N_ASV_count_class)
+
+ZUG.N_DNA_age <- filter(ZUG24_N_rplum,  depth %in% c(2,5,8,11,14,17,20,23,26,32,35,38,41,48))
+
+#round to full numbers 
+
+ZUG.N_DNA_age2 <- round(ZUG.N_DNA_age$mean, digits=0)
+
+ZUG.N_DNA_age3 <- as.character(ZUG.N_DNA_age2)
+
+#replace sample names with age
+
+colnames(ZUG.N_ASV_count_class) <- c("class", ZUG.N_DNA_age3)
+
+ZUG.N_ASV_count_class.rev <- rev(ZUG.N_ASV_count_class)
+
+
+#Southern Basin
+
+ZUG.S_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24S03")
+
+ZUG.S_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.S_ASV_count.a]
+
+ZUG.S_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24S03")
+
+ZUG.S_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.S_ASV_count.a]
+
+ZUG.S_ASV_count$class <- Swiss_Lakes_ASV_tax$class
+
+
+#re-order samples 
+
+ZUG.S_ASV_count_ord <- ZUG.S_ASV_count[,c(1,12,14, 2,3,4,5,6,7,8,9,10,11, 13, 15)]
+
+#sum rows with same taxonomic class  
+
+ZUG.S_ASV_count_class <- aggregate(.~class,ZUG.S_ASV_count_ord,FUN=sum)
+
+#replace colnames with age
+
+colnames(ZUG.S_ASV_count_class)
+
+ZUG.S_DNA_age <- filter(ZUG24_S_rplum, depth %in% c(2,5,8,11,14,17,20,23,26,29,32,35,38,41))
+
+#round to full numbers 
+
+ZUG.S_DNA_age2 <- round(ZUG.S_DNA_age$mean, digits=0)
+
+ZUG.S_DNA_age3 <- as.character(ZUG.S_DNA_age2)
+
+#replace sample names with age
+
+colnames(ZUG.S_ASV_count_class) <- c("class", ZUG.S_DNA_age3)
+
+ZUG.S_ASV_count_class.rev <- rev(ZUG.S_ASV_count_class)
+
+```
+
+## basin comparison via non-metric multidimensional scaling (NMDS)
+
+```{r}
+#cannot do PEMRANOVA since independence assumption is not met:
+
+#https://archetypalecology.wordpress.com/2018/02/21/permutational-multivariate-analysis-of-variance-permanova-in-r-preliminary/ (accessed on 28.11.2025)
+
+#Assumptions:
+
+#Objects in the data set are exchangeable under the null hypothesis
+#Exchangable objects (sites, samples, observations, etc) are independent X
+#Exchangable objects have similar multivariate disperson (i.e. each group has a similar degree of multivariate scatter)
+
+#--> go for NMDs
+
+#NMDS based on alcohol distributions
+
+#including sandy layers
+
+meta.ZUG24_alcohols.b <-metaMDS(ZUG24_NS_alcohols_rel_conc, k=3, autotransform= FALSE, try= 100, trymax= 100, 
+                                distance = "bray") #stress 0.052
+
+
+NMDS_ZUG24_sample <- as.data.frame(scores(meta.ZUG24_alcohols.b, "sites")) #sites is the same as the sample 
+
+ZUG24S_group_NMDS_alc <- rev(c(rep("TR",5), rep("S",2),"TR", "S", "TR", rep("S",2), "TR", "S"))
+
+NMDS_ZUG24_sample$group <- c(rep("N",15), ZUG24S_group_NMDS_alc)
+
+
+ZUG24NS_age_depth <- c(round(ZUG24_N_age_depth$mean, digits=0), round(ZUG24_S_age_depth2$mean, digits=0))
+
+NMDS_ZUG24_sample$age_CE <- ZUG24NS_age_depth
+
+
+#make nice NMDS plot with ggplot
+
+pNMDS_ZUG24_Alc <- ggplot() + 
+  ggtitle(expression(atop("ZUG24 NMDS alcohols", "")), subtitle="stress: 0.052")+
+  geom_text(data=NMDS_ZUG24_sample, 
+            aes(x=NMDS1,y=-1*NMDS2, color=factor(group, levels = c("TR" , "S", "N"))), 
+            label=NMDS_ZUG24_sample$age_CE,size= 10.5)+ 
+  scale_color_manual(labels=c(N="Northern Basin",
+                              S= "Southern Basin",
+                              TR= "turbidites"), 
+                     values= c(N= "cadetblue3",
+                               S= "darkslategray",
+                               TR= "tan2"),
+                     breaks= c("N", "S", "TR"))+
+  ylim(-0.5, 0.5)+ xlim(-0.5,0.5)+ 
+  xlab(expression(atop( "","NMDS1")))+ylab(expression(atop("NMDS2", "")))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        plot.title = element_text(size=35),
+        plot.subtitle = element_text(size=30),
+        legend.text=element_text(size=27.5),
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        legend.key.spacing.y = unit(0.5, 'cm'),
+        legend.position = "none",
+        #legend.background = element_rect(fill="white",size=0.5, linetype="solid", colour ="black"),
+        axis.text.x = element_text(size=30, color= "black"),
+        axis.text.y = element_text(size=30, color= "black"),
+        axis.title.x = element_text(size = 30 ),
+        axis.title.y = element_text(size = 30),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.75),
+        plot.margin = unit(c(0.5,0.5,0.5,1), "cm"))
+
+
+#NMDS based on taxonomic class level 
+
+ZUG.N.a <- ZUG.N_ASV_count_class.rev[,-15]
+
+rownames(ZUG.N.a) <- ZUG.N_ASV_count_class.rev$class
+
+ZUG.N_ASV_class_for_NMDS <- as.data.frame(t(ZUG.N.a))
+
+ZUG.N_ASV_class_for_NMDS$group <- rep("N", 14)
+
+
+ZUG.S.a <- ZUG.S_ASV_count_class.rev[,-15]
+
+rownames(ZUG.S.a) <- ZUG.S_ASV_count_class.rev$class
+
+ZUG.S_ASV_class_for_NMDS <- as.data.frame(t(ZUG.S.a))
+
+ZUG.S_ASV_class_for_NMDS$group <- c(rep("TR",5), rep("S",2),"TR", "S", "TR", rep("S",2), "TR", "S")
+
+#merge for NMDS
+
+ZUG.NS_ASV_class_for_NMDS <- rbind.data.frame(ZUG.N_ASV_class_for_NMDS, ZUG.S_ASV_class_for_NMDS)
+
+#strong arche effec; do sqrt transformation
+
+meta.ZUG24_ASV_class <-metaMDS(sqrt(ZUG.NS_ASV_class_for_NMDS[,1:31]), k=3, autotransform= FALSE, try= 100, trymax= 100, 
+                               distance = "bray") #stress 0.069
+
+
+NMDS_ZUG24_ASV_sample <- as.data.frame(scores(meta.ZUG24_ASV_class, "sites")) #sites is the same as the sample 
+
+
+NMDS_ZUG24_ASV_sample$group <- ZUG.NS_ASV_class_for_NMDS$group
+
+#change order for plotting Southern basin values as a first layer
+
+NMDS_ZUG24_ASV_sample2 <- rbind.data.frame(NMDS_ZUG24_ASV_sample[15:28,], NMDS_ZUG24_ASV_sample[1:14,])
+
+pNMDS_ZUG24_ASV<- ggplot() + 
+  ggtitle(expression(atop("ZUG24 NMDS ASV class", "")), subtitle="stress: 0.069")+
+  #geom_segment(mapping= aes(x = 0.28, y = 0.1, xend = 0.28, yend =0.12), color= "gray")+
+  #geom_segment(mapping= aes(x = -0.39, y = 0.08, xend = 0.28, yend =0.08), color= "gray")+
+  geom_text(data=NMDS_ZUG24_ASV_sample2, 
+            aes(x=NMDS1,y=NMDS2, color=factor(group, levels = c("S", "N", "TR"))), 
+            label=row.names(NMDS_ZUG24_ASV_sample2),size= 10.5)+ 
+  scale_color_manual(labels=c(N="Northern Basin",
+                              S= "Southern Basin",
+                              TR= "turbidites"), 
+                     values= c(N= "cadetblue3",
+                               S= "darkslategray",
+                               TR= "tan2"),
+                     breaks= c("N", "S", "TR"))+
+  xlim(-0.9,0.8)+ ylim(-0.5,0.685)+
+  xlab(expression(atop( "","NMDS1")))+ylab(expression(atop("NMDS2", "")))+
+  theme(axis.line = element_line(colour = "black"), 
+        panel.background = element_blank(),
+        plot.title = element_text(size=35),
+        plot.subtitle = element_text(size=30),
+        legend.text=element_text(size=27.5),
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        legend.key.spacing.y = unit(0.5, 'cm'),
+        legend.position = "none",
+        #legend.background = element_rect(fill="white",size=0.5, linetype="solid", colour ="black"),
+        axis.text.x = element_text(size=30, color= "black"),
+        axis.text.y = element_text(size=30, color= "black"),
+        axis.title.x = element_text(size = 30 ),
+        axis.title.y = element_text(size = 30),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.75),
+        plot.margin = unit(c(0.5,0.5,0.5,1), "cm"))
+
+
+Fig8ab <- plot_grid(pNMDS_ZUG24_Alc ,pNMDS_ZUG24_ASV, ncol=2, rel_heights= c(1,1), axis= "tb", align = "h" )
+
+```
+
+# Fig. 8ab
+
+```{r, fig.width = 25, fig.height = 12.5, echo=FALSE}
+
+plot(Fig8ab)
+

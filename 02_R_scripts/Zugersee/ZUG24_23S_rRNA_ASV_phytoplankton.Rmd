@@ -1,0 +1,641 @@
+---
+title: "ZUG24 23S rRNA phytoplankton taxonomic classes"
+author: "Antonia Klatt"
+date: "2026-05-27"
+output: html_document
+---
+
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load packages
+
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(caret)
+library(gam)
+library(vegan)
+library(dplyr)
+library(rioja)
+library(ggdendro)
+library(stringr)
+library(tidyr)
+
+#Note: for Zugersee, two separate core from the northern (ZUG_N) and the southern basin (ZUG_S) were analyzed in this study
+
+
+#Import data
+
+##age-depth model
+
+ZUG24_N_rplum <- read.csv (here("01_Data","Zugersee", "ZUG24_N_51_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#select every second row rplum file --> specific subsampling depths 
+
+ZUG24_N_age_depth <- rbind.data.frame((ZUG24_N_rplum[3:42,] %>% filter(row_number() %% 3 == 1)), (ZUG24_N_rplum[49:49,]))
+
+
+ZUG24_S_rplum <- read.csv (here("01_Data","Zugersee", "ZUG24_S_46_ages_run_260526.csv"), header = TRUE , sep = "," , stringsAsFactors = FALSE, na.strings = "#NV")
+
+#for age model, sandy layers were excluded beforehand --> better fit with caesium peaks
+
+ZUG24_S_age_depth2 <- rbind.data.frame((ZUG24_S_rplum[3:42,] %>% filter(row_number() %% 3 == 1)))
+
+
+##23S rRNA amplicon sequenceing variants (ASV) data (sedDNA)
+
+#ASV count data
+
+Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+
+#ASV taxonomy data (NCBI)
+
+Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+
+
+#Northern Basin
+
+ZUG.N_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24N02")
+
+ZUG.N_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.N_ASV_count.a]
+
+ZUG.N_ASV_count$class <- Swiss_Lakes_ASV_tax$class
+
+
+#re-order samples 
+
+ZUG.N_ASV_count_ord <- ZUG.N_ASV_count[,c(1,11,14, 2,3,4,5,6,7,8,9,10,12, 13, 15)]
+
+#sum rows with same taxonomic class 
+
+ZUG.N_ASV_count_class <- aggregate(.~class,ZUG.N_ASV_count_ord,FUN=sum)
+
+#replace colnames with age
+
+colnames(ZUG.N_ASV_count_class)
+
+ZUG.N_DNA_age <- filter(ZUG24_N_rplum,  depth %in% c(2,5,8,11,14,17,20,23,26,32,35,38,41,48))
+
+#round to full numbers 
+
+ZUG.N_DNA_age2 <- round(ZUG.N_DNA_age$mean, digits=0)
+
+ZUG.N_DNA_age3 <- as.character(ZUG.N_DNA_age2)
+
+#replace sample names with age
+
+colnames(ZUG.N_ASV_count_class) <- c("class", ZUG.N_DNA_age3)
+
+ZUG.N_ASV_count_class.rev <- rev(ZUG.N_ASV_count_class)
+
+
+#Southern Basin
+
+ZUG.S_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24S03")
+
+ZUG.S_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.S_ASV_count.a]
+
+ZUG.S_ASV_count.a <- str_detect(names(Swiss_Lakes_ASV_count), "ZUG24S03")
+
+ZUG.S_ASV_count <- Swiss_Lakes_ASV_count[, ZUG.S_ASV_count.a]
+
+ZUG.S_ASV_count$class <- Swiss_Lakes_ASV_tax$class
+
+
+#re-order samples 
+
+ZUG.S_ASV_count_ord <- ZUG.S_ASV_count[,c(1,12,14, 2,3,4,5,6,7,8,9,10,11, 13, 15)]
+
+#sum rows with same taxonomic class  
+
+ZUG.S_ASV_count_class <- aggregate(.~class,ZUG.S_ASV_count_ord,FUN=sum)
+
+#replace colnames with age
+
+colnames(ZUG.S_ASV_count_class)
+
+ZUG.S_DNA_age <- filter(ZUG24_S_rplum, depth %in% c(2,5,8,11,14,17,20,23,26,29,32,35,38,41))
+
+#round to full numbers 
+
+ZUG.S_DNA_age2 <- round(ZUG.S_DNA_age$mean, digits=0)
+
+ZUG.S_DNA_age3 <- as.character(ZUG.S_DNA_age2)
+
+#replace sample names with age
+
+colnames(ZUG.S_ASV_count_class) <- c("class", ZUG.S_DNA_age3)
+
+ZUG.S_ASV_count_class.rev <- rev(ZUG.S_ASV_count_class)
+
+```
+
+## Stratigraphically constrained clustering (CONISS) of 23S rRNA data
+
+```{r}
+#Northern basin
+
+#create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+ZUG.N.a <- ZUG.N_ASV_count_class.rev[,-15]
+
+rownames(ZUG.N.a) <-ZUG.N_ASV_count_class.rev$class
+
+ZUG.N_ASV_class_for_CONISS <- as.data.frame(t(ZUG.N.a))
+
+
+ZUG.N_ASV_dist <- vegdist(ZUG.N_ASV_class_for_CONISS, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+ZUG.N_ASV_class_for_CONISS.1 <- ZUG.N_ASV_class_for_CONISS[, apply(ZUG.N_ASV_class_for_CONISS[1:(ncol(ZUG.N_ASV_class_for_CONISS))], 2, sum)!=0]
+
+#comparing dataframes
+
+ZUG.N_ASV_class_for_CONISS.1
+
+ZUG.N_ASV_dist <- vegdist(ZUG.N_ASV_class_for_CONISS.1, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+ZUG.N_ASV_CONISS <-chclust(ZUG.N_ASV_dist, method = "coniss")
+
+plot(ZUG.N_ASV_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS ZUG24 ASV")
+
+bstick(ZUG.N_ASV_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS ZUG24 alcohols") 
+#cluster 2 is significant
+
+
+#extract dendrogram
+
+ZUG.N_ASV_dendro <- as.dendrogram(ZUG.N_ASV_CONISS)
+
+ZUG.N_ASV_dend_data <- dendro_data(ZUG.N_ASV_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+
+dendAge <- approxfun(ZUG.N_ASV_dend_data$labels$x, as.numeric(as.character(ZUG.N_ASV_dend_data$labels$label))) 
+ZUG.N_ASV_dend_data$segments$x <- dendAge(ZUG.N_ASV_dend_data$segments$x)
+ZUG.N_ASV_dend_data$segments$xend <- dendAge(ZUG.N_ASV_dend_data$segments$xend)
+
+pZUG.N_ASV_CONISS <- ggplot(segment(ZUG.N_ASV_dend_data)) +
+  ggtitle(expression('CONISS'['23S rRNA ASVs']~'North Basin'), subtitle="CONISS")+
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  scale_x_continuous(limits= c(1789,2015))+
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_y_continuous()+
+  theme_dendro()+
+  theme(plot.title = element_text(size=40, hjust=0.5),
+        plot.subtitle = element_blank(),
+        plot.margin = unit(c(1,1.25,0,1), "cm"))
+
+
+#reshape for barplot
+
+#before plotting: summarize low abundant classes for plotting with colSums < 10% 
+
+ZUG.N_ASV_count_class.a <- ZUG.N_ASV_count_class[,2:15]
+row.names(ZUG.N_ASV_count_class.a) <- ZUG.N_ASV_count_class$class
+
+
+#remove all rows with colSums <20
+
+ZUG.N_ASV_class_red1 <- ZUG.N_ASV_count_class.a[apply(ZUG.N_ASV_count_class.a, 1, sum) >= 20, ]
+
+ZUG.N_ASV_class_red2.a <- ZUG.N_ASV_count_class.a[apply(ZUG.N_ASV_count_class.a, 1, sum) <= 20, ]
+
+#ZUG.N_ASV_class_red2.b <- ZUG.N_ASV_count_class.a[apply(ZUG.N_ASV_count_class.a, 1, sum) == 0, ] #sum to 0
+#ZUG.N_ASV_class_red2.b 
+
+#Bolidophyceae
+#Chloropicophyceae
+#Phaeophyceae  
+#Prasinodermophyceae
+#Rhodellophyceae
+#Xanthophyceae
+#Zygnemophyceae 
+
+#summarize low abundant classes from ZUG.N_ASV_class_red2.a
+
+ZUG.N_ASV_class_low_class <- as.data.frame(t(colSums(ZUG.N_ASV_class_red2.a)))
+
+rownames(ZUG.N_ASV_class_low_class) <- c('low_abundant')
+
+ZUG.N_ASV_count_class.b <- rbind.data.frame(ZUG.N_ASV_class_red1,ZUG.N_ASV_class_low_class)
+
+ZUG.N_ASV_count_class.b2 <- as.data.frame(t(ZUG.N_ASV_count_class.b))
+
+
+ZUG.N_ASV_count_class.b2$year <- as.numeric(row.names(ZUG.N_ASV_count_class.b2))
+
+
+pCyano_N <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.N_ASV_count_class.b2, aes(x = year, y = Cyanophyceae), fill='darkslategray',
+            alpha=0.75, color='darkslategray') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Cyanophyceae (%)')+  
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'darkslategray'), 
+        axis.ticks = element_line(colour = 'darkslategray'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='darkslategray'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='darkslategray'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(0,1.25,-5,1), "cm"))
+
+
+pChloro_N <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.N_ASV_count_class.b2, aes(x = year, y = Chlorophyceae), fill='aquamarine4',
+            alpha=0.75, color='aquamarine4') +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Chlorophyceae (%)')+  
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'aquamarine4'), 
+        axis.ticks = element_line(colour = 'aquamarine4'),
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='aquamarine4'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='aquamarine4'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1.25,-5,1), "cm"))
+
+pTreboux_N <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.N_ASV_count_class.b2, aes(x = year, y = Trebouxiophyceae), fill='#9ACAD0',
+            alpha=0.75, color='#9ACAD0') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Trebouxiophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#9ACAD0'), 
+        axis.ticks = element_line(colour = '#9ACAD0'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='#9ACAD0'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='#9ACAD0'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1.25,-5,1), "cm"))
+
+
+pUlvo_N <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.N_ASV_count_class.b2, aes(x = year, y = Ulvophyceae), fill='#84AD84',
+            alpha=0.75, color='#84AD84') +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Ulvophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#84AD84'), 
+        axis.ticks = element_line(colour = '#84AD84'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='#84AD84'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='#84AD84'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1.25,-5,1), "cm"))
+
+
+pEustig_N <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.N_ASV_count_class.b2, aes(x = year, y = Eustigmatophyceae), fill='tan3',
+            alpha=0.60, color='tan3') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Eustigmatophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'tan3'),
+        axis.ticks = element_line(colour = 'tan3'),
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='tan3'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='tan3'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1.25,-0.75,1), "cm"))
+
+
+pBangio_N <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.N_ASV_count_class.b2, aes(x = year, y =Bangiophyceae), fill='red4',
+            alpha=0.5, color='red4') +
+  scale_y_continuous(position='left', limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1789,2015), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Bangiophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line.y = element_line(colour = 'red4'),
+        axis.ticks.y = element_line(colour = 'red4'),
+        axis.line.x = element_line(colour = 'black'),
+        axis.ticks.x = element_line(colour = 'black'),
+        axis.text.x = element_text(size=40,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=40,color="red4"),
+        axis.title.x = element_text(size=40,color="black"),
+        axis.title.y = element_text(size=40,color="red4"),
+        legend.position= "none",
+        plot.margin = unit(c(-0.75,1.25,0.5,1), "cm"))
+
+
+#Southern Basin
+
+##create dissimilarity matrix based on Bray Curtis distance (like in NDMS)
+
+ZUG.S.a <- ZUG.S_ASV_count_class.rev[,-15]
+
+rownames(ZUG.S.a) <- ZUG.S_ASV_count_class.rev$class
+
+ZUG.S_ASV_class_for_CONISS <- as.data.frame(t(ZUG.S.a))
+
+ZUG.S_ASV_class_for_CONISS.1 <- ZUG.S_ASV_class_for_CONISS[, apply(ZUG.S_ASV_class_for_CONISS[1:(ncol(ZUG.S_ASV_class_for_CONISS))], 2, sum)!=0]
+
+
+#comparing dataframes
+
+ZUG.S_ASV_class_for_CONISS.1
+
+ZUG.S_ASV_dist <- vegdist(ZUG.S_ASV_class_for_CONISS.1, method="bray", binary=FALSE, diag=FALSE, upper=FALSE)
+
+
+#CONISS constrained cluster analysis chclust(d, method = "coniss")
+
+ZUG.S_ASV_CONISS <-chclust(ZUG.S_ASV_dist, method = "coniss")
+
+plot(ZUG.S_ASV_CONISS, cex.axis=0.5, cex= 0.75, main= "CONISS ZUG24 ASV")
+
+bstick(ZUG.S_ASV_CONISS, ng=10, plot=TRUE, title = "Broken stick model CONISS ZUG24 alcohols") 
+#cluster 2 is significant
+
+
+#extract dendrogram
+
+ZUG.S_ASV_dendro <- as.dendrogram(ZUG.S_ASV_CONISS)
+
+ZUG.S_ASV_dend_data <- dendro_data(ZUG.S_ASV_dendro)
+
+#replace labels (order) in dendrogram by actual ages with approxfun for aligning plots
+
+dendAge <- approxfun(ZUG.S_ASV_dend_data$labels$x, as.numeric(as.character(ZUG.S_ASV_dend_data$labels$label))) 
+ZUG.S_ASV_dend_data$segments$x <- dendAge(ZUG.S_ASV_dend_data$segments$x)
+ZUG.S_ASV_dend_data$segments$xend <- dendAge(ZUG.S_ASV_dend_data$segments$xend)
+
+pZUG.S_ASV_CONISS <- ggplot(segment(ZUG.S_ASV_dend_data)) +
+  ggtitle(expression('CONISS'['23S rRNA ASVs']~'South Basin'), subtitle="CONISS")+
+  annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  scale_x_continuous(limits= c(1795,2019))+
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_y_continuous()+
+  theme_dendro()+
+  theme(plot.title = element_text(size=40, hjust=0.5),
+        plot.subtitle = element_blank(),
+        plot.margin = unit(c(1,1,0,1.25), "cm"))
+
+#before plotting: summarize low abundant classes for plotting with colSums < 10% 
+
+ZUG.S_ASV_count_class.a <- ZUG.S_ASV_count_class[,2:15]
+row.names(ZUG.S_ASV_count_class.a) <- ZUG.S_ASV_count_class$class
+
+
+#remove all rows with colSums <20
+
+ZUG.S_ASV_class_red1 <- ZUG.S_ASV_count_class.a[apply(ZUG.S_ASV_count_class.a, 1, sum) >= 20, ]
+
+ZUG.S_ASV_class_red2.a <- ZUG.S_ASV_count_class.a[apply(ZUG.S_ASV_count_class.a, 1, sum) <= 20, ]
+
+#ZUG.S_ASV_class_red2.b <- ZUG.S_ASV_count_class.a[apply(ZUG.S_ASV_count_class.a, 1, sum) == 0, ] #sum to 0
+#ZUG.S_ASV_class_red2.b 
+
+#Bolidophyceae
+#Glaucocystophyceae
+#Phaeophyceae  
+#Prasinodermophyceae
+
+
+#summarize low abundant classes from ZUG.S_ASV_class_red2.a
+
+ZUG.S_ASV_class_low_class <- as.data.frame(t(colSums(ZUG.S_ASV_class_red2.a)))
+
+rownames(ZUG.S_ASV_class_low_class) <- c('low_abundant')
+
+ZUG.S_ASV_count_class.b <- rbind.data.frame(ZUG.S_ASV_class_red1,ZUG.S_ASV_class_low_class)
+
+ZUG.S_ASV_count_class.b2 <- as.data.frame(t(ZUG.S_ASV_count_class.b))
+
+
+ZUG.S_ASV_count_class.b2$year <- as.numeric(row.names(ZUG.S_ASV_count_class.b2))
+
+
+pCyano_S <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.S_ASV_count_class.b2, aes(x = year, y = Cyanophyceae), fill='darkslategray',
+            alpha=0.75, color='darkslategray') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1795,2019), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Cyanophyceae (%)')+  
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'darkslategray'), 
+        axis.ticks = element_line(colour = 'darkslategray'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='darkslategray'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='darkslategray'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(0,1,-5,1.25), "cm"))
+
+
+pChloro_S <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.S_ASV_count_class.b2, aes(x = year, y = Chlorophyceae), fill='aquamarine4',
+            alpha=0.75, color='aquamarine4') +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1795,2019), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Chlorophyceae (%)')+  
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'aquamarine4'), 
+        axis.ticks = element_line(colour = 'aquamarine4'),
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='aquamarine4'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='aquamarine4'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1,-5,1.25), "cm"))
+
+pTreboux_S <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.S_ASV_count_class.b2, aes(x = year, y = Trebouxiophyceae), fill='#9ACAD0',
+            alpha=0.75, color='#9ACAD0') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1795,2019), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Trebouxiophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#9ACAD0'), 
+        axis.ticks = element_line(colour = '#9ACAD0'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='#9ACAD0'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='#9ACAD0'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1,-5,1.25), "cm"))
+
+
+pUlvo_S <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.S_ASV_count_class.b2, aes(x = year, y = Ulvophyceae), fill="#84AD84",
+            alpha=0.75, color="#84AD84") +
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1795,2019), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Ulvophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "#84AD84"), 
+        axis.ticks = element_line(colour = "#84AD84"), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color="#84AD84"),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color="#84AD84"),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1,-5,1.25), "cm"))
+
+
+pEustig_S <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.S_ASV_count_class.b2, aes(x = year, y = Eustigmatophyceae), fill='tan3',
+            alpha=0.60, color='tan3') +
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1795,2019), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Eustigmatophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'tan3'),
+        axis.ticks = element_line(colour = 'tan3'),
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=40,color='tan3'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=40,color='tan3'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-5,1,-0.75,1.25), "cm"))
+
+
+pBangio_S <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=ZUG.S_ASV_count_class.b2, aes(x = year, y =Bangiophyceae), fill='red4',
+            alpha=0.5, color='red4') +
+  scale_y_continuous(position='left', limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits= c(1795,2019), breaks= c(1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Bangiophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line.y = element_line(colour = 'red4'),
+        axis.ticks.y = element_line(colour = 'red4'),
+        axis.line.x = element_line(colour = 'black'),
+        axis.ticks.x = element_line(colour = 'black'),
+        axis.text.x = element_text(size=40,color="black", angle=45, vjust=0.5),
+        axis.text.y = element_text(size=40,color="red4"),
+        axis.title.x = element_text(size=40,color="black"),
+        axis.title.y = element_text(size=40,color="red4"),
+        legend.position= "none",
+        plot.margin = unit(c(-0.75,1,0.5,1.25), "cm"))
+
+
+#plotting ZUG24 N S in 2 columns 
+
+pZUG.N_ASV <- plot_grid(pZUG.N_ASV_CONISS, pCyano_N, pChloro_N, pTreboux_N, pUlvo_N, pEustig_N, pBangio_N,
+                        nrow=7, rel_heights = c(0.65,1.475, 1,1,1,1.425, 2.435), axis= "rl", align= "v")
+
+
+pZUG.S_ASV <- plot_grid(pZUG.S_ASV_CONISS, pCyano_S, pChloro_S, pTreboux_S, pUlvo_S, pEustig_S, pBangio_S,
+                        nrow=7, rel_heights = c(0.65,1.475, 1,1,1,1.425, 2.435), axis= "rl", align= "v")
+
+#portrait 15x36.5
+
+Fig7ab <-plot_grid(pZUG.N_ASV, pZUG.S_ASV, ncol=2, rel_heights= c(1,1), axis= "tb", align = "h")
+ 
+```
+
+# Fig. 7ab
+
+```{r, fig.width = 36.5, fig.height = 36.5, echo=FALSE}
+
+plot(Fig7ab)
+
+```
