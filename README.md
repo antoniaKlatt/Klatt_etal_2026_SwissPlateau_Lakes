@@ -17,8 +17,6 @@ The sedDNA data included here have been processed by the dada2 pipeline incl. ta
 
 Raw sequencing reads from sedDNA samples can be found elsewhere (ENA repository [Link]).
 
-R codes for running the dada2 pipeline and filtering for phytoplankton groups will be uploaded delayed in this repository or elsewhere...
-
 Note that for Greifensee, lipid data are based on sediment cores collected in 2018, while sedDNA data are from a newly collected core from 2024. For Zugersee, data from two different sediment cores are included - one core was taken at the northern basin (ZUG_N), one core was taken at the southern basin (ZUG_S).
 
 ### 02_R_scripts
