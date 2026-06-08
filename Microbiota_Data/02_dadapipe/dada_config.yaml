@@ -1,0 +1,71 @@
+
+################################################################################
+############################# MENDATORY PARAMETERS #############################
+################################################################################
+
+#Taxonomy assignment
+#which classifiers should be used
+#chose between "RDP", "IDTAXA", "both"
+taxonomy_classifier: "RDP"
+
+#add frameshifts to 03_primers
+#use "" if no frameshift,
+#else add frameshifts as one string "C",CT,ACT,GACT" separated by commas
+# frameshift_forward: "C,CT,ACT,GACT"
+# frameshift_reverse: "C,CT,ACT,GACT"
+
+#Databases (db of not choosen classifiers can be left empty: "")
+bacteria_RDP_db: "~/../GROUP/taxanomy_databases/LSU_silva_nr99_v138.2_toSpecies_trainset.fa.gz"
+bacteria_IDTAXA_db: ""
+fungi_RDP_db: ""
+fungi_IDTAXA_db: ""
+
+################################################################################
+
+################################################################################
+############################# OPTIONAL PARAMETERS ##############################
+################################################################################
+
+#Quality filtering bacteria
+#Truncate f and r reads after truncLen bases. Reads shorter than this are discarded. 0 = no truncation
+truncLen_bac_forward: "0" #recommended: "0"
+truncLen_bac_reverse: "250" #recommended: "220"
+#Truncate reads at the first instance of a quality score less than or equal to truncQ.
+truncQ_bac: "2" #recommended: "2"
+#After truncation, reads with higher than maxEE "expected errors" will be discarded. Inf = no EE filtering
+maxEE_bac_forward: "2" #recommended: "2"
+maxEE_bac_reverse: "2" #recommended: "2"
+
+# #Quality filtering fungi
+#Remove reads with length less than minLen. minLen is enforced after trimming and truncation.
+minLen_fun: "50" #recommended: "50"
+#Truncate reads at the first instance of a quality score less than or equal to truncQ.
+truncQ_fun: "8" #recommended: "8"
+#After truncation, reads with higher than maxEE "expected errors" will be discarded. Inf = no EE filtering
+maxEE_fun_forward: "5" #recommended: "5"
+maxEE_fun_reverse: "5" #recommended: "5"
+
+################################################################################
+# truncLen_fun_forward: "0" #recommended: "0"
+# truncLen_fun_reverse: "170" #recommended: "220"
+# #Truncate reads at the first instance of a quality score less than or equal to truncQ.
+# truncQ_fun: "2" #recommended: "2"
+# #After truncation, reads with higher than maxEE "expected errors" will be discarded. Inf = no EE filtering
+# maxEE_fun_forward: "2" #recommended: "2"
+# maxEE_fun_reverse: "2" #recommended: "2"
+################################################################################
+
+#Taxonomy assignment
+#Confidence to truncate taxonomic classifications. Lower values classify deeper at the expense of accuracy (between 1 and 100%)
+RDP_minBoot: "50" #recommended: "50"
+IDTAXA_minBoot: "50" #recommended: "50"
+
+
+#Percents of similarity to cluster ASVs at the end
+clustering_percent: ["100"] #recommended: ["97","98","99","100"]
+n_processor: "16" #number of procsser used to cluster
+
+################################################################################
+#here job_exec.sh will add the taxa to analyse (based on design-file)
+#add it here manually
+taxa: "bacteria"

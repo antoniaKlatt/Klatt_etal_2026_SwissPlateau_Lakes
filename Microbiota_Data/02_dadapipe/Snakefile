@@ -1,0 +1,138 @@
+## --------------------------------------------------------------------
+## Jan Wälchli | 11.11.2024 | Version 9.0
+## --------------------------------------------------------------------
+
+configfile: "dada_config.yaml"
+
+#define lists
+TAXA = config["taxa"]
+PERCENT = config["clustering_percent"]
+DIRECTIONS = ["r1", "r2"] #forward and reverse direction
+#RUNS, = glob_wildcards("01_INPUT/01_data/{run}.r1.fastq.gz") #get runs
+RUNS = ["20250916", "20251110"] #add runs manually
+
+
+#local rules
+#localrules: a_job_status, d_primer_files, f_barcode_files
+
+#set all desired output files
+rule all:
+ input:
+    expand("05_filter_and_trim/RDS/filtFs_{taxa}_{run}.RDS", taxa=TAXA, run=RUNS),
+    expand("05_filter_and_trim/RDS/filtRs_{taxa}_{run}.RDS", taxa=TAXA, run=RUNS),
+    expand("log/00_tracking/out_{taxa}_{run}.RDS", taxa=TAXA, run=RUNS),
+    expand("06_error_learning/RDS/{taxa}/dadaFs_{run}.RDS", taxa=TAXA, run=RUNS),
+    expand("06_error_learning/RDS/{taxa}/dadaRs_{run}.RDS", taxa=TAXA, run=RUNS),
+    expand("07_merged/RDS/{taxa}/mergers.RDS", taxa=TAXA),
+    expand("08_table_and_taxonomy/RDS/{taxa}/seqtab.RDS", taxa=TAXA)
+
+#filter by quality and trim low quality ends
+rule h_filter_and_trim:
+    input:
+        "04_demultiplexed/{taxa}/{run}"
+    output:
+        "05_filter_and_trim/RDS/filtFs_{taxa}_{run}.RDS",
+        "05_filter_and_trim/RDS/filtRs_{taxa}_{run}.RDS",
+        "log/00_tracking/out_{taxa}_{run}.RDS"
+    log:
+        "log/05_filter_and_trim/{taxa}_{run}.out",
+        "log/05_filter_and_trim/{taxa}_{run}.error"
+    params:
+        truncLen_bac_forward = config["truncLen_bac_forward"],
+        truncLen_bac_reverse = config["truncLen_bac_reverse"],
+        truncQ_bac = config["truncQ_bac"],
+        maxEE_bac_forward = config["maxEE_bac_forward"],
+        maxEE_bac_reverse = config["maxEE_bac_reverse"],
+        minLen_fun = config["minLen_fun"],
+        truncQ_fun = config["truncQ_fun"],
+        maxEE_fun_forward = config["maxEE_fun_forward"],
+        maxEE_fun_reverse = config["maxEE_fun_reverse"]
+    benchmark:
+        "log/benchmarks/h_filter_and_trim_{taxa}_{run}.tsv"
+    shell:
+        """
+        module load R/4.4.1-gfbf-2023b
+        Rscript 00_scripts/07_filter_and_trim.R {input} {output} {log} {params}
+        """
+
+
+#learn the error rate and infer the dada2 algorithm
+rule i_error_learning:
+    input:
+        "05_filter_and_trim/RDS/filtFs_{taxa}_{run}.RDS",
+        "05_filter_and_trim/RDS/filtRs_{taxa}_{run}.RDS"
+    output:
+        #directory("08_error_learning/RDS/{taxa}"),
+        "06_error_learning/RDS/{taxa}/dadaFs_{run}.RDS",
+        "06_error_learning/RDS/{taxa}/dadaRs_{run}.RDS",
+        "06_error_learning/RDS/{taxa}/derepFs_{run}.RDS",
+        "06_error_learning/RDS/{taxa}/derepRs_{run}.RDS",
+        "06_error_learning/RDS/{taxa}/errF_{run}.RDS",
+        "06_error_learning/RDS/{taxa}/errR_{run}.RDS",
+    log:
+        "log/06_error_learning/{taxa}_{run}.out",
+        "log/06_error_learning/{taxa}_{run}.error"
+    benchmark:
+        "log/benchmarks/i_error_learning_{taxa}_{run}.tsv"
+    shell:
+        """
+        module load R/4.4.1-gfbf-2023b
+        Rscript 00_scripts/08_error_learning.R {input} {output} {log}
+        """
+
+
+#combine runs and merge forward and reverse
+rule j_merge:
+    input:
+        expand("06_error_learning/RDS/{{taxa}}/dadaFs_{run}.RDS", run=RUNS), #keep taxa as wildcard
+        expand("06_error_learning/RDS/{{taxa}}/dadaRs_{run}.RDS", run=RUNS),
+        expand("06_error_learning/RDS/{{taxa}}/derepFs_{run}.RDS", run=RUNS),
+        expand("06_error_learning/RDS/{{taxa}}/derepRs_{run}.RDS", run=RUNS),
+        expand("06_error_learning/RDS/{{taxa}}/errF_{run}.RDS", run=RUNS),
+        expand("06_error_learning/RDS/{{taxa}}/errR_{run}.RDS", run=RUNS)
+    output:
+        "07_merged/RDS/{taxa}/derepFs.RDS",
+        "07_merged/RDS/{taxa}/derepRs.RDS",
+        "07_merged/RDS/{taxa}/dadaFs.RDS",
+        "07_merged/RDS/{taxa}/dadaRs.RDS",
+        "07_merged/RDS/{taxa}/mergers.RDS"
+    log:
+        "log/07_merged/{taxa}.out",
+        "log/07_merged/{taxa}.error"
+    benchmark:
+        "log/benchmarks/j_merge_{taxa}.tsv"
+    shell:
+        """
+        module load R/4.4.1-gfbf-2023b
+        Rscript 00_scripts/09_merge.R {input} {output} {log}
+        """
+
+
+#create ASV table and assign taxonomy
+rule k_table_and_taxonomy:
+    input:
+        "07_merged/RDS/{taxa}/mergers.RDS"
+    output:
+        "08_table_and_taxonomy/RDS/{taxa}/seqtab.RDS",
+        "08_table_and_taxonomy/RDS/{taxa}/seqtab_nochim.RDS",
+        "08_table_and_taxonomy/RDS/{taxa}/taxa.RDS",
+        "08_table_and_taxonomy/RDS/{taxa}/sequences.RDS",
+        "10_OUTPUT/quality_check/{taxa}_rarefaction.pdf"
+    log:
+        "log/08_table_and_taxonomy/{taxa}.out",
+        "log/08_table_and_taxonomy/{taxa}.error"
+    params:
+        classifier = config["taxonomy_classifier"],
+        RDP_minBoot = config["RDP_minBoot"],
+        IDTAXA_minBoot = config["IDTAXA_minBoot"],
+        RDP_bac = config["bacteria_RDP_db"],
+        IDTAXA_bac = config["bacteria_IDTAXA_db"],
+        RDP_fun = config["fungi_RDP_db"],
+        IDTAXA_fun = config["fungi_IDTAXA_db"]
+    benchmark:
+        "log/benchmarks/k_table_and_taxonomy_{taxa}.tsv"
+    shell:
+        """
+        module load R/4.4.1-gfbf-2023b
+        Rscript 00_scripts/10_table_and_taxonomy.R {input} {output} {log} {params}
+        """

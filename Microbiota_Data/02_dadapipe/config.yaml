@@ -1,0 +1,28 @@
+#General snakemake settings
+latency-wait: 60 #seconds
+rerun-incomplete: true
+printshellcmds: true
+
+#Report settings
+# printshellcmds: true
+# report: "log/report.html"
+# summary: true
+
+#SLURM settings
+executor: slurm
+jobs: 100
+
+default-resources:
+  slurm_partition: "scicore"
+  slurm_account:   "schlae0003"
+  runtime: 360 #minutes
+  mem: 64g
+  #mem_mb_per_cpu: 1800
+  cpus_per_task: 40
+  slurm_extra: "'--qos=6hours --error=log/jobs/%j.err --output=log/jobs/%j.out'"
+
+#   #SLURM log jobs
+# set-resources:
+#   job_status:
+#     mem: 1800
+#     cpus_per_task: 1
