@@ -9,3 +9,5 @@
 **03_NCBI_taxonomy:** taxonomy was assigned with the NCBI database 
 
 **04_filtering:** data were filtered by sample sequencing depth (390'000 sequences), normalised by TSS and outliers removed. Then ASVs were filtered by phytoplankton classes.
+
+**05_OUTPUT:** phytoplankton data use for downstream analysis
