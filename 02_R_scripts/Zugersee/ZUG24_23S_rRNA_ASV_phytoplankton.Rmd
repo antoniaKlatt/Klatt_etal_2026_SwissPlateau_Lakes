@@ -52,11 +52,11 @@ ZUG24_S_age_depth2 <- rbind.data.frame((ZUG24_S_rplum[3:42,] %>% filter(row_numb
 
 #ASV count data
 
-Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+Swiss_Lakes_ASV_count <- read.delim(here("Microbiota_Data", "05_OUTPUT",'COUNT_phytoplankton.tab'))
 
 #ASV taxonomy data (NCBI)
 
-Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+Swiss_Lakes_ASV_tax <- read.delim(here("Microbiota_Data", "05_OUTPUT",'TAXA_phytoplankton.tab'))
 
 
 #Northern Basin
