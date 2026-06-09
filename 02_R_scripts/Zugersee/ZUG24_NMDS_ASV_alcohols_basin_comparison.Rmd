@@ -57,11 +57,11 @@ ZUG24_NS_alcohols_rel_conc <- read.csv(here("01_Data","Zugersee", "ZUG24_N_S_Alc
 
 #ASV count data
 
-Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA",'COUNT_phytoplankton.tab'))
+Swiss_Lakes_ASV_count <- read.delim(here("Microbiota_Data", "05_OUTPUT",'COUNT_phytoplankton.tab'))
 
 #ASV taxonomy data (NCBI)
 
-Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA",'TAXA_phytoplankton.tab'))
+Swiss_Lakes_ASV_tax <- read.delim(here("Microbiota_Data", "05_OUTPUT",'TAXA_phytoplankton.tab'))
 
 #extract data for Zugersee
 
