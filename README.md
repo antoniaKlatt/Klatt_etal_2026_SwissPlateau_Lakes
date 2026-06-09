@@ -14,7 +14,7 @@ This folder contains <b>lipid</b> data from Greifensee, Murtensee and Zugersee.
 For Murtensee and Zugersee, input data to run the 'rplum' package (210Pb and 226Ra and 137Cs) for age-depth modeling are included here as well.
 
 ### Microbiota_Data
-This folder contains all steps for processing the amplicon sequencing data from sedDNA extracts. Raw sequencing data have been processed by the dada2 pipeline incl. taxonomic assignments by the Basic Local Alignment Search Tool (BLAST) against the National Center for Biotechnology Information (NCBI) database (accessed on 5th June 2026) and filtered for phytoplankton groups while reads from non-algal groups have been excluded. Absolute algal ASV counts from each sample were normalized by total sum scaling. 
+This folder contains all steps for processing raw amplicon sequencing data from sedDNA extracts as well as outcome data for downstream analysis. Raw sequencing data have been processed by the dada2 pipeline incl. taxonomic assignments by the Basic Local Alignment Search Tool (BLAST) against the National Center for Biotechnology Information (NCBI) database (accessed on 5th June 2026) and filtered for phytoplankton groups while reads from non-algal groups have been excluded. Absolute algal ASV counts from each sample were normalized by total sum scaling. 
 
 Raw sequencing reads from sedDNA samples can be found at the ENA repository [PRJEB114126].
 
