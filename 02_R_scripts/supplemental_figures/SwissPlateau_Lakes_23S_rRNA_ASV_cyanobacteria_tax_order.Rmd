@@ -78,7 +78,7 @@ ZUG.S_DNA_age3 <- as.character(ZUG.S_DNA_age2)
 
 #23S rRNA ASV sedDNA data
 
-Swiss_Lakes_ASV_count <- read.delim(here("01_Data","sedDNA","COUNT_phytoplankton.tab"))
+Swiss_Lakes_ASV_count <- read.delim(here("Microbiota_Data", "05_OUTPUT","COUNT_phytoplankton.tab"))
 
 #ASV count file is normalized -> sum scaling normalization 
 #absolute values from each sample transformed in % to account for variable sequencing depths of samples 
@@ -87,7 +87,7 @@ str(Swiss_Lakes_ASV_count)
 
 #check out ASV Taxonomies
 
-Swiss_Lakes_ASV_tax <- read.delim(here("01_Data","sedDNA","TAXA_phytoplankton.tab"))
+Swiss_Lakes_ASV_tax <- read.delim(here("Microbiota_Data", "05_OUTPUT","TAXA_phytoplankton.tab"))
 
 ```
 
