@@ -9,7 +9,7 @@ In this study, we analyzed algal proxies in short sediment cores from Swiss Plat
 #### Note: Raw DNA sequencing reads are uploaded at the European Nucleotide Archive (ENA) repository [PRJEB114126].
 
 ### 01_Data
-This folder contains <lipid> data from Greifensee, Murtensee and Zugersee. 
+This folder contains <b>lipid</b> data from Greifensee, Murtensee and Zugersee. 
 
 For Murtensee and Zugersee, input data to run the 'rplum' package (210Pb and 226Ra and 137Cs) for age-depth modeling are included here as well.
 
