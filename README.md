@@ -18,7 +18,7 @@ This folder contains all steps for processing the amplicon sequencing data from 
 
 Raw sequencing reads from sedDNA samples can be found at the ENA repository [PRJEB114126].
 
-## Note that for Greifensee, lipid data are based on sediment cores collected in 2018, while sedDNA data are from a newly collected core from 2024. For Zugersee, data from two different sediment cores are included - one core was taken at the northern basin (ZUG_N), one core was taken at the southern basin (ZUG_S).
+### Note that for Greifensee, lipid data are based on sediment cores collected in 2018, while sedDNA data are from a newly collected core from 2024. For Zugersee, data from two different sediment cores are included - one core was taken at the northern basin (ZUG_N), one core was taken at the southern basin (ZUG_S).
 
 ### 02_R_scripts
 This folder contains R codes for data analysis and plotting as well as the rplum code to create the age-depth model for Murtensee and Zugersee.
