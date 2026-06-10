@@ -55,20 +55,20 @@ GRE_ASV_count$class <- Swiss_Lakes_ASV_tax$class
 #get colnames
 
 colnames(GRE_ASV_count)
-#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
-#[6] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36"
-#[11] "GRE24SC.02DNA38.40" "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62"
-#[16] "GRE24SC.02DNA8.10"  "phylum"    
+#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA14.16" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
+#[7] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36" "GRE24SC.02DNA38.40"
+#[13] "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62" "GRE24SC.02DNA8.10"  "phylum"            
 
-GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(5,12,14,16,1,2,3,4,6,7,8,9,10,11,13,15,17)])
+GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(6,13,15,17,1,2,3,4,5,7,8,9,10,11,12,14,16,18)])
 
-#sum rows with same phylum  
+#sum rows with same class
 
 GRE_ASV_count_class <- aggregate(.~class,GRE_ASV_count_ord,FUN=sum)
 
-colnames(GRE_ASV_count_class) <- c("class", rev(c("2012", "2005", "1999", "1993", "1987", "1981", "1970",
+colnames(GRE_ASV_count_class) <- c("class", rev(c("2012", "2005", "1999", "1993", "1987", "1981","1975", "1970",
                                                   "1963", "1955", "1948", "1928", "1918", "1898", "1878",
                                                   "1818", "1768")))
+
 
 #The age model is based on varve counting down to 24 cm (we sliced up the cores in three - year intervals). 
 #Below that, the ages are based on the age model from McKenzie and Hollander, 1993, and are assumed to be 5 years/cm. 
@@ -131,9 +131,7 @@ pGRE24_ASV_CONISS <- ggplot(segment(GRE24_ASV_dend_data)) +
 
 #plotting relative abundances of algal taxononomic classes
 
-#before plotting: summarize low abundant classes for plotting with colSums < 10% 
-
-GRE_ASV_count_class.a <- GRE_ASV_count_class[,2:17]
+GRE_ASV_count_class.a <- GRE_ASV_count_class[,2:18]
 row.names(GRE_ASV_count_class.a) <- GRE_ASV_count_class$class
 
 
@@ -141,10 +139,14 @@ row.names(GRE_ASV_count_class.a) <- GRE_ASV_count_class$class
 
 GRE_ASV_class_red1 <- GRE_ASV_count_class.a[apply(GRE_ASV_count_class.a, 1, sum) >= 20, ]
 
+row.names(GRE_ASV_class_red1)
+#[1] "Bangiophyceae"     "Chlorophyceae"     "Cyanophyceae"      "Euglenida"         "Eustigmatophyceae" "Trebouxiophyceae" 
+#[7] "Ulvophyceae" 
+
 GRE_ASV_class_red2.a <- GRE_ASV_count_class.a[apply(GRE_ASV_count_class.a, 1, sum) <= 20, ]
 
-#GRE_ASV_class_red2.b <- GRE_ASV_count_class.a[apply(GRE_ASV_count_class.a, 1, sum) == 0, ] #sum to 0
-#GRE_ASV_class_red2.b 
+GRE_ASV_class_red2.b <- GRE_ASV_count_class.a[apply(GRE_ASV_count_class.a, 1, sum) == 0, ] #sum to 0
+GRE_ASV_class_red2.b 
 
 #Glaucocystophyceae     
 #Mamiellophyceae        
@@ -153,70 +155,70 @@ GRE_ASV_class_red2.a <- GRE_ASV_count_class.a[apply(GRE_ASV_count_class.a, 1, su
 
 GRE_ASV_count_class.b2 <- as.data.frame(t(GRE_ASV_class_red1))
 
-GRE_ASV_count_class.b2$year <- as.numeric(row.names(GRE_ASV_count_class.b2))
-
-
-GRE_ASV_count_class2 <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Bangiophyceae',
-                                                                                      'Chlorophyceae', 
-                                                                                      'Cyanophyceae', 
-                                                                                      'Euglenida',
-                                                                                      'Eustigmatophyceae',
-                                                                                      'Trebouxiophyceae'))
+GRE_ASV_count_class.b2$year <- as.numeric(colnames(GRE_ASV_class_red1))
 
 
 GRE_Cyano <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Cyanophyceae'))
 
 pCyano <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   geom_area(data=GRE_Cyano, aes(x = year, y = value, fill=variable),
             alpha=0.75, color='darkslategray') +
-  scale_fill_manual(labels= c(Cyanophyceae='Cyanophyceae'),
+  scale_fill_manual(labels= c(Cyanophyceae= 'Cyanophyceae'),
                     values= c(Cyanophyceae= 'darkslategray'),
                     name= '23S rRNA ASV')+
-  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
   scale_x_continuous(limits=c(1768,2012))+
-  xlab(expression(atop("","Year CE"))) +  ylab(expression(italic(Cyanophyceae)~'(%)'))+  
+  xlab(expression(atop("","Year CE"))) +  ylab('Cyanophyceae (%)')+  
   theme(panel.background = element_rect(fill = NA, color = NA),
         plot.background  = element_rect(fill = NA, color = NA),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.line = element_line(colour = 'darkslategray'), 
         axis.ticks = element_line(colour = 'darkslategray'), 
+        #legend.title = element_blank(),
         axis.title.x = element_blank(),
         axis.title.y = element_text(size=35,color='darkslategray'),
         axis.line.x =element_blank(),
         axis.text.y = element_text(size=35,color='darkslategray'),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
         legend.position= "none",
-        plot.margin = unit(c(0,0.5,-5,0.5), "cm"))
+        plot.margin = unit(c(0,0.5,-4.5,0.5), "cm"))
 
 
 
 GRE_Chloro <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Chlorophyceae'))
 
 pChloro <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   geom_area(data=GRE_Chloro, aes(x = year, y = value, fill=variable),
             alpha=0.75, color='aquamarine4') +
   scale_fill_manual(labels= c(Chlorophyceae= 'Chlorophyceae'),
                     values= c(Chlorophyceae= 'aquamarine4'),
                     name= '23S rRNA ASV')+
-  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
   scale_x_continuous(limits=c(1768,2012))+
-  xlab(expression(atop("","Year CE"))) +  ylab(expression(italic(Chlorophyceae)~'(%)'))+  
+  xlab(expression(atop("","Year CE"))) +  ylab('Chlorophyceae (%)')+  
   theme(panel.background = element_rect(fill = NA, color = NA),
         plot.background  = element_rect(fill = NA, color = NA),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.line = element_line(colour = 'aquamarine4'), 
         axis.ticks = element_line(colour = 'aquamarine4'),
+        #legend.title = element_blank(),
         axis.title.x = element_blank(),
         axis.title.y = element_text(size=35,color='aquamarine4'),
         axis.line.x =element_blank(),
         axis.text.y = element_text(size=35,color='aquamarine4'),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
         legend.position= "none",
-        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+        plot.margin = unit(c(-4.5,0.5,-4.5,0.5), "cm"))
 
 
 GRE_Treboux <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Trebouxiophyceae'))
@@ -228,33 +230,68 @@ pTreboux <- ggplot()+
   scale_fill_manual(labels= c(Trebouxiophyceae= 'Trebouxiophyceae'),
                     values= c(Trebouxiophyceae= '#9ACAD0'),
                     name= '23S rRNA ASV')+
-  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
   scale_x_continuous(limits=c(1768,2012))+
-  xlab(expression(atop("","Year CE"))) +  ylab(expression(italic(Trebouxiophyceae)~'(%)'))+   
+  xlab(expression(atop("","Year CE"))) +  ylab('Trebouxiophyceae (%)')+   
   theme(panel.background = element_rect(fill = NA, color = NA),
         plot.background  = element_rect(fill = NA, color = NA),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.line = element_line(colour = '#9ACAD0'), 
         axis.ticks = element_line(colour = '#9ACAD0'), 
+        #legend.title = element_blank(),
         axis.title.x = element_blank(),
         axis.title.y = element_text(size=35,color='#9ACAD0'),
         axis.line.x =element_blank(),
         axis.text.y = element_text(size=35,color='#9ACAD0'),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
         legend.position= "none",
-        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+        plot.margin = unit(c(-4.5,0.5,-4.5,0.5), "cm"))
 
+
+GRE_Ulvo <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Ulvophyceae'))
+
+pUlvo <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  geom_area(data=GRE_Ulvo, aes(x = year, y = value, fill=variable),
+            alpha=0.75, color='#84AD84') +
+  scale_fill_manual(labels= c(Ulvophyceae= 'Ulvophyceae'),
+                    values= c(Ulvophyceae= '#84AD84'),
+                    name= '23S rRNA ASV')+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
+  scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
+  scale_x_continuous(limits=c(1768,2012))+
+  xlab(expression(atop("","Year CE"))) +  ylab('Ulvophyceae (%)')+   
+  theme(panel.background = element_rect(fill = NA, color = NA),
+        plot.background  = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = '#84AD84'), 
+        axis.ticks = element_line(colour = '#84AD84'), 
+        #legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=35,color='#84AD84'),
+        axis.line.x =element_blank(),
+        axis.text.y = element_text(size=35,color='#84AD84'),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
+        legend.position= "none",
+        plot.margin = unit(c(-4.5,0.5,-4.5,0.5), "cm"))
 
 GRE_Euglenida <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Euglenida'))
 
 pEuglenida <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   geom_area(data=GRE_Euglenida, aes(x = year, y = value, fill=variable),
             alpha=0.75, color='tan') +
   scale_fill_manual(labels= c(Euglenida= 'Euglenida'),
                     values= c(Euglenida = 'tan'),
                     name= '23S rRNA ASV')+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   scale_y_continuous(position='left',limits=c(0,105), expand=c(0,0))+
   scale_x_continuous(limits=c(1768,2012))+
   xlab(expression(atop("","Year CE"))) +  ylab('Euglenida (%)')+   
@@ -264,27 +301,31 @@ pEuglenida <- ggplot()+
         panel.grid.minor = element_blank(),
         axis.line = element_line(colour = 'tan'), 
         axis.ticks = element_line(colour = 'tan'), 
+        #legend.title = element_blank(),
         axis.title.x = element_blank(),
         axis.title.y = element_text(size=35,color='tan'),
         axis.line.x =element_blank(),
         axis.text.y = element_text(size=35,color='tan'),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
+        #legend.position=c(0.175, -0.05),
         legend.position= "none",
-        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+        plot.margin = unit(c(-4.5,0.5,-4.5,0.5), "cm"))
 
 
 GRE_Eustig <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Eustigmatophyceae'))
 
 pEustig <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   geom_area(data=GRE_Eustig, aes(x = year, y = value, fill=variable),
             alpha=0.75, color='tan3') +
   scale_fill_manual(labels= c(Eustigmatophyceae= 'Eustigmatophyceae'),
                     values= c(Eustigmatophyceae= 'tan3'),
                     name= '23S rRNA ASV')+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   scale_y_continuous(position='right',limits=c(0,105), expand=c(0,0))+
   scale_x_continuous(limits=c(1768,2012))+
-  xlab(expression(atop("","Year CE"))) +  ylab(expression(italic(Eustigmatophyceae)~'(%)'))+   
+  xlab(expression(atop("","Year CE"))) +  ylab('Eustigmatophyceae (%)')+   
   theme(panel.background = element_rect(fill = NA, color = NA),
         plot.background  = element_rect(fill = NA, color = NA),
         panel.grid.major = element_blank(),
@@ -300,20 +341,22 @@ pEustig <- ggplot()+
         axis.ticks.x = element_blank(),
         #legend.position=c(0.175, -0.05),
         legend.position= "none",
-        plot.margin = unit(c(-5,0.5,-5,0.5), "cm"))
+        plot.margin = unit(c(-4.5,0.5,-4.5,0.5), "cm"))
 
 
 GRE_Bangio <- melt(GRE_ASV_count_class.b2, id.vars="year", measure.vars = c('Bangiophyceae'))
 
 pBangio <- ggplot()+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   geom_area(data=GRE_Bangio, aes(x = year, y = value, fill=variable),
             alpha=0.5, color='red4') +
   scale_fill_manual(labels= c(Bangiophyceae= 'Bangiophyceae'),
                     values= c(Bangiophyceae= 'red4'),
                     name= '23S rRNA ASV')+
+  #annotate("rect", xmin =  1950 ,xmax = 1980 ,ymin = -Inf, ymax = Inf, alpha=0.065, fill="red1")+ 
   scale_y_continuous(position='left', limits=c(0,105), expand=c(0,0))+
   scale_x_continuous(limits=c(1768,2012), breaks=c(1770,1790,1810,1830,1850,1870,1890,1910,1930,1950,1970,1990,2010))+
-  xlab(expression(atop("","Year CE"))) +  ylab(expression(italic(Bangiophyceae)~'(%)'))+   
+  xlab(expression(atop("","Year CE"))) +  ylab('Bangiophyceae (%)')+   
   theme(panel.background = element_rect(fill = NA, color = NA),
         plot.background  = element_rect(fill = NA, color = NA),
         panel.grid.major = element_blank(),
@@ -327,18 +370,17 @@ pBangio <- ggplot()+
         axis.title.x = element_text(size=35,color="black"),
         axis.title.y = element_text(size=35,color="red4"),
         legend.position= "none",
-        plot.margin = unit(c(-5,0.5,0.5,0.5), "cm"))
+        plot.margin = unit(c(-4.5,0.5,0.5,0.5), "cm"))
 
 
-Fig3 <- plot_grid(pGRE24_ASV_CONISS, pCyano, pChloro, pTreboux, pEuglenida, pEustig, pBangio,
-          nrow=7, rel_heights = c(0.5,1.475, 1,1,1,1, 2), axis= "rl", align= "v")
-
+Fig3 <-plot_grid(pGRE24_ASV_CONISS, pCyano, pChloro, pTreboux, pUlvo, pEuglenida, pEustig, pBangio,
+          nrow=8, rel_heights = c(0.5,1.475, 1,1,1,1,1, 2), axis= "rl", align= "v")
 
 ```
 
 # Fig. 3
 
-```{r, fig.width = 15, fig.height = 32.5, echo=FALSE}
+```{r, fig.width = 15, fig.height = 35, echo=FALSE}
 
 plot(Fig3)
 
