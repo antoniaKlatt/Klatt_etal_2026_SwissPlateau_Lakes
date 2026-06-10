@@ -251,18 +251,17 @@ GRE18_d2H <- ggplot() +
 #get colnames
 
 colnames(GRE_ASV_count)
-#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
-#[6] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36"
-#[11] "GRE24SC.02DNA38.40" "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62"
-#[16] "GRE24SC.02DNA8.10"  "phylum"    
+#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA14.16" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
+#[7] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36" "GRE24SC.02DNA38.40"
+#[13] "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62" "GRE24SC.02DNA8.10"  "phylum"            
 
-GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(5,12,14,16,1,2,3,4,6,7,8,9,10,11,13,15,17)])
+GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(6,13,15,17,1,2,3,4,5,7,8,9,10,11,12,14,16,18)])
 
 #sum rows with same phylum  
 
 GRE_ASV_count_phylum <- aggregate(.~phylum,GRE_ASV_count_ord,FUN=sum)
 
-colnames(GRE_ASV_count_phylum) <- c("phylum", rev(c("2012", "2005", "1999", "1993", "1987", "1981", "1970",
+colnames(GRE_ASV_count_phylum) <- c("phylum", rev(c("2012", "2005", "1999", "1993", "1987", "1981", "1975", "1970",
                                                     "1963", "1955", "1948", "1928", "1918", "1898", "1878",
                                                     "1818", "1768")))
 
@@ -276,11 +275,11 @@ GRE_ASV_count_cyano <- subset(GRE_ASV_count_phylum, grepl('Cyanobacteriota', phy
 
 GRE_ASV_count_cyano.a <- as.data.frame(t(GRE_ASV_count_cyano))
 
-GRE_ASV_count_cyano2 <- as.data.frame(GRE_ASV_count_cyano.a[2:17,])
+GRE_ASV_count_cyano2 <- as.data.frame(GRE_ASV_count_cyano.a[2:18,])
 
 GRE_ASV_count_cyano_age_CE.a <- as.numeric(rownames(GRE_ASV_count_cyano.a))
 
-GRE_ASV_count_cyano_age_CE <- GRE_ASV_count_cyano_age_CE.a[2:17]
+GRE_ASV_count_cyano_age_CE <- GRE_ASV_count_cyano_age_CE.a[2:18]
 
 GRE_ASV_count_cyano_rel <- as.numeric(GRE_ASV_count_cyano2[,1:1])
 
