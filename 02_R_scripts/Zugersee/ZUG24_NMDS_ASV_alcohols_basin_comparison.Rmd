@@ -237,7 +237,7 @@ ZUG.NS_ASV_class_for_NMDS <- rbind.data.frame(ZUG.N_ASV_class_for_NMDS, ZUG.S_AS
 #strong arche effec; do sqrt transformation
 
 meta.ZUG24_ASV_class <-metaMDS(sqrt(ZUG.NS_ASV_class_for_NMDS[,1:31]), k=3, autotransform= FALSE, try= 100, trymax= 100, 
-                               distance = "bray") #stress 0.069
+                               distance = "bray") #stress 0.057
 
 
 NMDS_ZUG24_ASV_sample <- as.data.frame(scores(meta.ZUG24_ASV_class, "sites")) #sites is the same as the sample 
@@ -250,7 +250,7 @@ NMDS_ZUG24_ASV_sample$group <- ZUG.NS_ASV_class_for_NMDS$group
 NMDS_ZUG24_ASV_sample2 <- rbind.data.frame(NMDS_ZUG24_ASV_sample[15:28,], NMDS_ZUG24_ASV_sample[1:14,])
 
 pNMDS_ZUG24_ASV<- ggplot() + 
-  ggtitle(expression(atop("ZUG24 NMDS ASV class", "")), subtitle="stress: 0.069")+
+  ggtitle(expression(atop("ZUG24 NMDS ASV class", "")), subtitle="stress: 0.057")+
   #geom_segment(mapping= aes(x = 0.28, y = 0.1, xend = 0.28, yend =0.12), color= "gray")+
   #geom_segment(mapping= aes(x = -0.39, y = 0.08, xend = 0.28, yend =0.08), color= "gray")+
   geom_text(data=NMDS_ZUG24_ASV_sample2, 
