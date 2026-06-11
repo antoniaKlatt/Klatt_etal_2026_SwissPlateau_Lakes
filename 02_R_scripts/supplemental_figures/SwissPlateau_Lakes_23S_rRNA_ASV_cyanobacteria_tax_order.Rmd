@@ -110,38 +110,35 @@ GRE_ASV_count$phylum <- Swiss_Lakes_ASV_tax$phylum
 
 #get colnames
 
-colnames(GRE_ASV_count)
-#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
-#[6] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36"
-#[11] "GRE24SC.02DNA38.40" "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62"
-#[16] "GRE24SC.02DNA8.10"  "phylum"    
 
-GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(5,12,14,16,1,2,3,4,6,7,8,9,10,11,13,15,17,18)])
+colnames(GRE_ASV_count)
+#[1] "GRE24SC.02DNA10.12" "GRE24SC.02DNA12.14" "GRE24SC.02DNA14.16" "GRE24SC.02DNA16.18" "GRE24SC.02DNA18.20" "GRE24SC.02DNA2.4"  
+#[7] "GRE24SC.02DNA20.22" "GRE24SC.02DNA22.24" "GRE24SC.02DNA28.30" "GRE24SC.02DNA30.32" "GRE24SC.02DNA34.36" "GRE24SC.02DNA38.40"
+#[13] "GRE24SC.02DNA4.6"   "GRE24SC.02DNA50.52" "GRE24SC.02DNA6.8"   "GRE24SC.02DNA60.62" "GRE24SC.02DNA8.10"  "order"             
+#[19] "phylum"   
+
+GRE_ASV_count_ord <- rev(GRE_ASV_count[,c(6,13,15,17,1,2,3,4,5,7,8,9,10,11,12,14,16,18,19)])
+
 
 #extract Cyanobacteriota 
 
 GRE_ASV_count_cyano_phylum <- subset(GRE_ASV_count_ord, grepl('Cyanobacteriota', phylum))
 
-GRE_ASV_count_cyano_phylum.b <- GRE_ASV_count_cyano_phylum[,2:18] #exclude phylum column
+GRE_ASV_count_cyano_phylum.b <- GRE_ASV_count_cyano_phylum[,2:19] #exclude phylum column
 
 #summarize by order level
 
 GRE_ASV_count_cyano_order_sum <- aggregate(.~order,GRE_ASV_count_cyano_phylum.b,FUN=sum)
 
-#add samples ages
 
-colnames(GRE_ASV_count_cyano_order_sum) <- c('order',rev(c("2012", "2005", "1999", "1993", "1987", "1981", "1970",
+colnames(GRE_ASV_count_cyano_order_sum) <- c('order',rev(c("2012", "2005", "1999", "1993", "1987", "1981","1975", "1970",
                                                            "1963", "1955", "1948", "1928", "1918", "1898", "1878",
                                                            "1818", "1768")))
-
-#The age model is based on varve counting down to 24 cm (we sliced up the cores in three - year intervals). 
-#Below that, the ages are based on the age model from McKenzie and Hollander, 1993, and are assumed to be 5 years/cm. 
-#These samples integrate 2 cm and represent ~ 10 years of accumulation, as opposed to 3 years per sample in the upper part of the core.
 
 
 GRE_ASV_cyano_order_sum.a <- as.data.frame(t(GRE_ASV_count_cyano_order_sum))
 
-GRE_ASV_cyano_order_sum2a <- as.data.frame(GRE_ASV_cyano_order_sum.a[2:17,]) #exclude extra row
+GRE_ASV_cyano_order_sum2a <- as.data.frame(GRE_ASV_cyano_order_sum.a[2:18,]) #exclude extra row
 
 GRE_ASV_cyano_order_sum2 <- cbind.data.frame(as.numeric(GRE_ASV_cyano_order_sum2a$V1), #need to convert to numeric values
                                              as.numeric(GRE_ASV_cyano_order_sum2a$V2),
@@ -160,7 +157,7 @@ colnames(GRE_ASV_cyano_order_sum2) <- GRE_ASV_count_cyano_order_sum$order
 
 GRE_ASV_cyano_order_sum2b <- GRE_ASV_cyano_order_sum2[, apply(GRE_ASV_cyano_order_sum2[1:(ncol(GRE_ASV_cyano_order_sum2))], 2, sum)!=0]
 
-GRE_ASV_cyano_order_sum2b$year <- as.numeric(colnames(GRE_ASV_count_cyano_order_sum[,2:17]))
+GRE_ASV_cyano_order_sum2b$year <- as.numeric(colnames(GRE_ASV_count_cyano_order_sum[,2:18]))
 
 colnames(GRE_ASV_cyano_order_sum2b)
 
