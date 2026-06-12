@@ -621,7 +621,7 @@ levels_phyla <- aggregate(PHYSEQ_melt$Abundance, list(PHYSEQ_melt$phylum_label),
   
 
 #define color matrix for phyla
-PHYla_colors <- c("#88A0DCFF", "#381A61FF", "#7C4B73FF", "#ED968CFF", "#AB3329FF", "grey70", "grey30")
+PHYla_colors <- c("#88A0DCFF", "#381A61FF", "#7C4B73FF", "#ED968CFF", "grey70", "grey30")
 names(PHYla_colors) <- levels_phyla
 
 rm(temp)
@@ -768,7 +768,8 @@ bPCoA[["plot"]]
 dir.create("../05_OUTPUT")
 write.table(COUNT_norm, "../05_OUTPUT/COUNT_phytoplankton.tab", sep="\t")
 write.table(TAXA, "../05_OUTPUT/TAXA_phytoplankton.tab", sep="\t")
-#saveRDS(DESIGN, "../05_OUTPUT/DESIGN.RDS")
+saveRDS(DESIGN, "../05_OUTPUT/DESIGN.RDS")
+saveRDS(PHYla_colors, "../05_OUTPUT/PHYLA_color.RDS")
 
 #save fasta file with phytoplankton species
 SEQ <- Biostrings::readDNAStringSet(paths$SEQ)

@@ -1,0 +1,166 @@
+---
+title: "Phylogenetic Tree"
+author: "Jan Wälchli"
+date: "`r Sys.Date()`"
+toc: false
+toc-depth: 3
+toc-location: left
+fig-align: center
+tbl-align: center
+cap-location: top
+lof: false
+lot: false
+format: pdf
+execute: 
+  echo: false
+  message: false
+  warning: false
+  error: false
+header-includes:
+      - \usepackage{float}
+      - \floatplacement{table}{H} #keeps table in float, otherwise placed at top
+---
+   
+```{r setup, include=FALSE, echo=F, warning=F, message=F,}
+
+##clear the object from memory
+rm(list=ls())
+
+#knitr settings
+knitr::opts_chunk$set(echo=TRUE, fig.align="center")
+options(tinytex.verbose = TRUE)
+
+#set seed
+set.seed(100)
+
+## set source
+setwd(this.path::here())
+
+## installs (if necessary) and loads libraries
+library(ggtree)
+library(ggtreeExtra)
+library(ggnewscale)
+library(tidyverse)
+library(gt)
+
+#import paths
+paths <- list(bASV_table = c("../../05_OUTPUT/COUNT_phytoplankton.tab"),
+              TAXA = c("../../05_OUTPUT/TAXA_phytoplankton.tab"),
+              DESIGN = c("../../05_OUTPUT/DESIGN.RDS"),
+              marine_species =c("marine_species.txt"),
+              tree =c("../01_build_tree/SEQ_phytoplankton_aligned.fasta.treefile"),
+              phyla_colors =c("../../05_OUTPUT/PHYLA_color.RDS"))
+
+```
+
+```{r import microbiome files, echo=F, message=F, warning=F}
+
+COUNT <- read.delim(paths$bASV_table, header=T, row.names=1, sep="\t")
+TAXA <- read.table(paths$TAXA, row.names=1, sep="\t", blank.lines.skip = FALSE)
+DESIGN <- readRDS(paths$DESIGN)
+
+```
+
+```{r label marine species, echo=F, message=F, warning=F}
+
+marine_species <- data.frame(raw = readLines(paths$marine_species)) %>%
+  mutate(
+    raw = str_trim(raw),
+    genus   = str_extract(raw, "^[A-Za-z-]+"),
+    species = str_trim(paste(genus, str_remove(raw, "^[A-Za-z-]+\\s*"))),
+  ) %>%
+  select(!raw) %>%
+  mutate(species=ifelse(genus == species, NA, species)) %>% #make species NA if list only contain genus level
+  mutate(decision_level=ifelse(is.na(species),"genus","species")) #on which level do we decide to call ASVs marine or not
+
+#add to TAXA if ASVs are marine or not
+TAXA <- TAXA %>%
+  mutate(habitat = ifelse(TAXA$genus %in% marine_species$genus[marine_species$decision_level=="genus"], "Marine", "Freshwater")) %>%
+  mutate(habitat = ifelse(TAXA$species %in% marine_species$species[marine_species$decision_level=="species"], "Marine", habitat))
+
+```
+
+```{r abundances marine ASVs, echo=F, message=F, warning=F}
+
+# table(TAXA$habitat)
+
+abu <- COUNT %>%
+  mutate(Abundance=rowSums(COUNT)) %>%
+  rownames_to_column("ASV") %>%
+  left_join(rownames_to_column(TAXA, "ASV"), ) %>%
+  dplyr::select(ASV, Abundance, habitat) %>%
+  group_by(habitat) %>%
+  summarise(Abundance=sum(Abundance)) %>%
+  ungroup() %>%
+  mutate(Abundance=paste0(round(Abundance/sum(Abundance)*100,2),"%")) %>%
+  dplyr::rename(Habitat=habitat)
+
+abu %>%
+  gt() %>%
+  tab_style(style = cell_text(align="center"), locations = cells_body()) %>%
+  tab_style(style = list(cell_text(weight = "bold", align = "center"), cell_fill("grey96")), locations = list(cells_column_labels())) %>%
+  fmt_number(sep_mark = "'", decimals=0) %>%
+  tab_options(table.width = px(250))
+
+
+```
+
+```{r tree, echo=F, message=F, warning=F}
+#| fig-width: 15
+#| fig-asp: 0.6 #width to height aspect ratio
+
+#read tree
+tree <- read.tree(paths$tree)
+phyla_colors <- readRDS(paths$phyla_colors)
+
+
+sorted_phylum_NCBI <- data.frame(ASV=tree$tip.label) %>%
+  left_join(rownames_to_column(TAXA, "ASV")) %>%
+  mutate(phylum=ifelse(phylum %in% names(phyla_colors), phylum, "Low abundant phyla")) %>%
+  mutate(phylum=factor(phylum, levels=names(phyla_colors))) %>%
+  select(phylum) %>%
+  unlist
+
+sorted_habitat <- data.frame(ASV=tree$tip.label) %>%
+  left_join(rownames_to_column(TAXA, "ASV")) %>%
+  select(habitat) %>%
+  unlist
+
+sorted_abu <- data.frame(ASV=tree$tip.label) %>%
+  left_join(COUNT %>%
+    mutate(abu=rowSums(COUNT)) %>%
+    rownames_to_column("ASV") %>%
+    select(ASV, abu),
+  join_by("ASV")) %>%
+  select(abu) %>%
+  unlist()
+
+
+#plot genetic tree with phyla
+p1 <- ggtree(tree, layout = "fan", branch.length = "none", lwd=0.2)+
+  geom_fruit(aes(y = label, fill = sorted_phylum_NCBI), geom = geom_tile, size = 2, width = 5) +
+  scale_fill_manual(name="Phylum", values=phyla_colors)+
+  new_scale_fill()+
+  geom_fruit(aes(y = label, fill = sorted_habitat), geom = geom_tile, size = 2, width = 5, offset = 0.08) +
+  scale_fill_manual(name="Habitat", values=c("darkseagreen1", "darkseagreen4") , na.translate = FALSE)+
+  new_scale_fill()+
+  geom_fruit(
+  aes(y = label, x = log(sorted_abu+1), col="log(Abundance)"),
+  geom = geom_col,orientation = "y", width = 0.2, offset = 0.046)+
+  scale_color_manual(name="Abundance", values="darkslategrey")+
+   guides(color = guide_legend(override.aes = 
+      list(shape = NA, size = 2, fill = "darkslategrey", color = "darkslategrey"), keywidth = 1.5, keyheight = 0.05))
+
+p1
+
+```
+
+\pagebreak
+
+## R session information
+
+```{r session info}
+
+sessionInfo()
+
+```
